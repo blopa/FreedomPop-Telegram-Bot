@@ -65,13 +65,13 @@ def start(bot, update):
         result = tools.User.select().where(tools.User.user_id == usr.id).execute()
         if result:
             userdb = tools.User.get(tools.User.user_id == usr.id)
-            #update.message.reply_text('Sorry, something went wrong, try again.')
-            #return int(userdb.conver_state)
             funcs = {1: user, 2: passw, 3: access, 4: reply, 5: replyText}
             return funcs[int(userdb.conver_state)](bot, update)
         elif msg.startswith('/start'):
-            reply_keyboard = [['Add account']]
-            update.message.reply_text('Hello, Im a bot yay', reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+            reply_keyboard = [['Register account']]
+            update.message.reply_text('Hello, Im a bot that allow you to log into your FreedomPop account and start '
+                                      'receiving and sending SMS from Telegram! AWESOME, right?',
+                                      reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
             return USER_STEP
 
     return END
@@ -84,12 +84,12 @@ def cancel(bot, update):
 
 def user(bot, update):
     usr = update.message.from_user
-    if update.message.text != "Add account":
-        update.message.reply_text('Sorry, I didnt understand that, try again.')
+    if update.message.text != "Register account":
+        update.message.reply_text('Sorry, I didnt understand that, try again. Try typing "Register account".')
         return END
 
     result = tools.User.select().where(tools.User.user_id == usr.id)
-    if result:
+    if result.execute():
         update.message.reply_text('Ops, it seems that you already have an account with us!')
         return END
 
@@ -113,7 +113,6 @@ def passw(bot, update):
         update.message.reply_text('Great! Now send me the password.')
         return ACCESS
     else:
-        #  TODO drop user?
         update.message.reply_text('Ops, something went wrong, try again!')
         return END
 
@@ -129,9 +128,7 @@ def access(bot, update):
 
     update.message.reply_text('Connecting...')
     userdb = tools.User.get(tools.User.user_id == usr.id)
-    # logger.info(userdb)
     userdb.initAPI()
-    # logger.info(userdb.api.initToken())
     if userdb.api.initToken():
         try:
             if userdb.save():
