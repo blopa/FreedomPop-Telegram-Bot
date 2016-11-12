@@ -42,6 +42,14 @@ def create_tb():
     User.create_table(True)
 
 
+def remove_user(user_id):
+    query = User.delete().where(User.user_id == user_id)
+    if query.execute():
+        return True
+    else:
+        return False
+
+
 def encrypt(plain_text):
     if isinstance(plain_text, basestring):
         string_text = str(plain_text)
