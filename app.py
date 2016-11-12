@@ -142,6 +142,7 @@ def access(bot, update):
                 if result.execute():
                     USERS = list(tools.User.select())
                     update.message.reply_text('Hooray, we are good to go!')
+                    update.message.reply_text('User /new_message to compose a new message. Or simply /new <PHONE_NUMBER>')
                     try:
                         botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
                     except Exception as e:
@@ -179,11 +180,14 @@ def sendNumber(bot, update):
         if msg != "/cancel":
             non_decimal = re.compile(r'[^\d]+')
             msg = non_decimal.sub('', msg)
-            REPLY_TO[usr.id] = msg
-            update.message.reply_text('Alright, send the message or /cancel to cancel.')
-            return SEND_TEXT
-    else:
-        update.message.reply_text('Ok, canceled.')
+            if msg:
+                REPLY_TO[usr.id] = msg
+                update.message.reply_text('Alright, send the message or /cancel to cancel.')
+                return SEND_TEXT
+            else:
+                update.message.reply_text('Sorry, that dosent look like a valid phone number.')
+        else:
+            update.message.reply_text('Ok, canceled.')
 
     return COMP_STATE
 
@@ -234,6 +238,15 @@ def composeState(bot, update):
     elif msg.startswith("/new_message"):
         update.message.reply_text('Alright, send me the phone number w/ country code or /cancel to cancel.')
         return SEND_NUMBER
+    elif msg.startswith("/new"): #  TODO DRY
+        non_decimal = re.compile(r'[^\d]+')
+        msg = non_decimal.sub('', msg[4:])
+        if msg:
+            REPLY_TO[usr.id] = msg
+            update.message.reply_text('Alright, send the message or /cancel to cancel.')
+            return SEND_TEXT
+        else:
+            update.message.reply_text('Sorry, that doesnt look like a valid phone number.')
     else:
         update.message.reply_text('Sorry, I didnt understand that, try again.')
 
