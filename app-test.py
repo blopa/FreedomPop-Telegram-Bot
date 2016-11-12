@@ -59,7 +59,6 @@ def cancel(bot, update):
 
 
 def user(bot, update):
-	print 'entrou user'
 	user = update.message.from_user
 	result = tools.User.select().where(tools.User.user_id == user.id)
 	if result:
@@ -78,32 +77,35 @@ def passw(bot, update):
 
 
 def access(bot, update):
+	global USERS
 	LOGIN.append(update.message.text)  # add password
 	user = update.message.from_user
 	update.message.reply_text('Connecting...')
 
 	userdb = tools.User(name=user.first_name, user_id=user.id, fp_user=LOGIN[0], fp_pass=LOGIN[1])
 	#userdb = tools.testConn(userdb.fp_user, userdb.fp_pass)
-	userdb.getConn()
-	if userdb.api:
+	if userdb.getConn():
 		if userdb.save():
-			USERS.append(userdb)
-			update.message.reply_text('We are good to go!')
+			#USERS.append(userdb) TODO
+			USERS = tools.User.select()
+			update.message.reply_text('Hooray, we are good to go!')
 		else:
-			update.message.reply_text('something went wrong, try again!')
-		return END
+			update.message.reply_text('Something went wrong, send us your password again!')
+		return PASS_STEP
 	else:
-		return END
+		update.message.reply_text('Ops, your username of password doesent seem right, please try again')
+		return USER_STEP
 
 
 def checker(*args, **kwargs):  # this is a thread
 	bot = Bot(API_KEY)
 	while True:
+		print 'to rodando'
 		before = time.time()
 		users = list(USERS)
 		if users:
 			for user in users:
-				data = user.checkNewSMS(604800)
+				data = user.checkNewSMS(86400)  # 604800
 				if data:
 					for text in data['messages']:
 						print text['body']
