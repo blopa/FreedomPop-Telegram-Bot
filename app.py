@@ -1,10 +1,13 @@
 import time
+import datetime
 import logging
 from telegram import Bot
 from telegram import (ReplyKeyboardMarkup)
 import sys
 import thread
 import tools
+import string
+import random
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -118,6 +121,18 @@ def access(bot, update):
         return USER_STEP
 
 
+def prepareText(txt):
+    sender = txt['from']  # phone number
+    reply = ""
+    for n in sender:
+        letter = string.ascii_lowercase[::-1][int(n)]
+        reply += random.choice([letter.upper(), letter])
+    #  reply = reply.encode('rot13')  # obfuscated phone number
+    date = datetime.datetime.fromtimestamp(float(txt['date'])/1000).strftime('%d/%m/%Y %H:%M:%S')  # date
+    content = txt['body']  # text content
+    return "*Reply:* /Reply%s\n*From: +%s @ %s*\n\n%s" % (reply, sender, date, content)
+
+
 def checker(*args, **kwargs):  # this is a thread
     bot = Bot(API_KEY)
     while True:
@@ -127,13 +142,13 @@ def checker(*args, **kwargs):  # this is a thread
             for user in users:
                 data = user.checkNewSMS(7200)  # 604800 86400
                 if data:
-                    for text in data['messages']:
-                        logger.info(text['body'])
-                        bot.sendMessage(chat_id=user.user_id, text=text['body'])
-                        read = user.api.setAsRead(text['id'])
-                        logger.info(read)
+                    for txt in data['messages']:
+                        #  logger.info(text['body'])
+                        if True: #user.api.setAsRead(txt['id']):
+                            text = prepareText(txt)
+                            bot.sendMessage(chat_id=user.user_id, text=text, parse_mode='MARKDOWN')
         duration = time.time() - before
-        #time.sleep(15 - (duration * 1000))
+        #  time.sleep(15 - (duration * 1000))
         time.sleep(5)
 
 
