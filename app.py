@@ -122,8 +122,8 @@ def access(bot, update):
 
 
 def prepareText(txt):
-    sender = txt['from']  # phone number
     reply = ""
+    sender = txt['from']  # phone number
     for n in sender:
         letter = string.ascii_lowercase[::-1][int(n)]
         reply += random.choice([letter.upper(), letter])
@@ -139,14 +139,14 @@ def checker(*args, **kwargs):  # this is a thread
         before = time.time()
         users = list(USERS)
         if users:
-            for user in users:
-                data = user.checkNewSMS(7200)  # 604800 86400
+            for usr in users:
+                data = usr.checkNewSMS(7200)  # 604800 86400
                 if data:
                     for txt in data['messages']:
                         #  logger.info(text['body'])
-                        if True: #user.api.setAsRead(txt['id']):
+                        if True:  #user.api.setAsRead(txt['id']):
                             text = prepareText(txt)
-                            bot.sendMessage(chat_id=user.user_id, text=text, parse_mode='MARKDOWN')
+                            bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='MARKDOWN')
         duration = time.time() - before
         #  time.sleep(15 - (duration * 1000))
         time.sleep(5)
