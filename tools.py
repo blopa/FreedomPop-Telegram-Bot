@@ -2,8 +2,10 @@ from fpapi import FreedomPop
 from peewee import *
 import time
 import sys
-import json
 from cryptography.fernet import Fernet
+import logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 CRYPTO = Fernet(sys.argv[2])
 db = SqliteDatabase('mydb.db')
@@ -32,10 +34,14 @@ class User(Model):
             self.api = FreedomPop(self.fp_user, decrypt_pass)
 
     def checkNewSMS(self, range):  # TODO change from range to read/unread messages
-        self.initAPI()
-        currTime = float(time.time())
-        pastTime = currTime - range
-        return self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False, False)
+        try:
+            self.initAPI()
+            currTime = float(time.time())
+            pastTime = currTime - range
+            return self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False, False)
+        except Exception as e:
+            logger.exception(e)
+            return False
 
 
 def create_tb():

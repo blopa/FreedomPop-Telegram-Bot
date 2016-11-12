@@ -1,6 +1,5 @@
 import time
 import datetime
-import logging
 from telegram import Bot
 from telegram import (ReplyKeyboardMarkup)
 import sys
@@ -12,6 +11,7 @@ import re
 import cgi
 import botan
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
+import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -262,7 +262,10 @@ def checker(*args, **kwargs):  # this is a thread
 
 def getUsers():
     global USERS
-    USERS = list(tools.User.select())
+    try:
+        USERS = list(tools.User.select())
+    except Exception as e:
+        logger.exception(e)
 
 
 if __name__ == '__main__':
