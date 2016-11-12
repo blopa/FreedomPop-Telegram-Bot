@@ -14,6 +14,7 @@ class User(Model):
     user_id = CharField(unique=True)
     fp_user = CharField(null=True)
     fp_pass = CharField(null=True)
+    conver_state = CharField()
 
     class Meta:
         database = db

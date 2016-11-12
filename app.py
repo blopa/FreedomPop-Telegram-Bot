@@ -14,7 +14,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 
-USER_STEP, PASS_STEP, ACCESS, END, REPLY, REPLY_TEXT = range(6)
+END, USER_STEP, PASS_STEP, ACCESS, REPLY, REPLY_TEXT = range(6)
 API_KEY = sys.argv[1]
 LOGIN = []
 USERS = []  #tools.User
@@ -29,10 +29,10 @@ def main():
     tools.db.connect()
     tools.create_tb()
     getUsers()
-    tools.db.close()
+    # tools.db.close()
     thread.start_new_thread(checker, ('dunno', 2))  # dunno why I am sending this params
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+        entry_points=[MessageHandler(Filters.all, start)],
 
         states={
             USER_STEP: [MessageHandler(Filters.text, user)],
@@ -41,9 +41,9 @@ def main():
 
             ACCESS: [MessageHandler(Filters.text, access)],
 
-            REPLY: [MessageHandler(Filters.text, reply)],
+            REPLY: [MessageHandler(Filters.command, reply)],
 
-            REPLY_TEXT: [MessageHandler(Filters.text, replyText)],
+            REPLY_TEXT: [MessageHandler(Filters.all, replyText)],
 
             END: [MessageHandler(Filters.text, end)]
         },
@@ -59,12 +59,23 @@ def end(bot, update):
 
 
 def start(bot, update):
-    reply_keyboard = [['Add account']]
-    update.message.reply_text(
-        'Hello, Im a bot yay',
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+    usr = update.message.from_user
+    msg = update.message.text
+    if msg:
+        result = tools.User.select().where(tools.User.user_id == usr.id).execute()
+        if result:
+            userdb = tools.User.get(tools.User.user_id == usr.id)
+            #update.message.reply_text('Sorry, something went wrong, try again.')
+            #return int(userdb.conver_state)
+            funcs = {1: user, 2: passw, 3: access, 4: reply, 5: replyText}
+            return funcs[int(userdb.conver_state)](bot, update)
+        elif msg.startswith('/start'):
+            reply_keyboard = [['Add account']]
+            update.message.reply_text('Hello, Im a bot yay', reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+            return USER_STEP
 
-    return USER_STEP
+    return END
+
 
 
 def cancel(bot, update):
@@ -82,7 +93,7 @@ def user(bot, update):
         update.message.reply_text('Ops, it seems that you already have an account with us!')
         return END
 
-    userdb = tools.User(name=usr.first_name, user_id=usr.id)
+    userdb = tools.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
         update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
         return PASS_STEP
@@ -97,7 +108,7 @@ def passw(bot, update):
         update.message.reply_text('That dosent seem like a valid email, try again!')
         return PASS_STEP
 
-    result = tools.User.update(fp_user=update.message.text).where(tools.User.user_id == usr.id)
+    result = tools.User.update(fp_user=update.message.text, conver_state=ACCESS).where(tools.User.user_id == usr.id)
     if result.execute():
         update.message.reply_text('Great! Now send me the password.')
         return ACCESS
@@ -124,9 +135,14 @@ def access(bot, update):
     if userdb.api.initToken():
         try:
             if userdb.save():
-                USERS = list(tools.User.select())
-                update.message.reply_text('Hooray, we are good to go!')
-                return REPLY
+                result = tools.User.update(conver_state=REPLY).where(tools.User.user_id == usr.id)
+                if result.execute():
+                    USERS = list(tools.User.select())
+                    update.message.reply_text('Hooray, we are good to go!')
+                    return REPLY
+                else:
+                    update.message.reply_text('Something went wrong, send us your password again!')
+                    return PASS_STEP
             else:
                 update.message.reply_text('Something went wrong, send us your password again!')
                 return PASS_STEP
@@ -140,16 +156,19 @@ def access(bot, update):
 def replyText(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    if msg != "/cancel":
-        replyto = REPLY_TO[usr.id]
-        apiuser = tools.User.select().where(tools.User.user_id == usr.id)
-        if apiuser.api.sendSMS(replyto, msg):
-            del REPLY_TO[usr.id]
-            update.message.reply_text('Message sent! YAY')
+    if msg:
+        if msg != "/cancel":
+            replyto = REPLY_TO[usr.id]
+            userdb = tools.User.get(tools.User.user_id == usr.id)
+            userdb.initAPI()
+            userdb.api.initToken()
+            if userdb.api.sendSMS(replyto, msg):
+                del REPLY_TO[usr.id]
+                update.message.reply_text('Message sent! YAY')
+            else:
+                update.message.reply_text('Something went wrong, try again!')
         else:
-            update.message.reply_text('Something went wrong, try again!')
-    else:
-        update.message.reply_text('Ok, reply canceled.')
+            update.message.reply_text('Ok, reply canceled.')
 
     return REPLY
 
@@ -161,7 +180,7 @@ def reply(bot, update):
         msg = msg[6:].lower()
         replyto = ""
         for l in msg:
-            replyto += ALPHABET.index(l)
+            replyto += str(ALPHABET.index(l))
         REPLY_TO[usr.id] = replyto
         update.message.reply_text('Alright, send the message or /cancel to cancel.')
         return REPLY_TEXT
@@ -184,6 +203,7 @@ def prepareText(txt):
 
 
 def checker(*args, **kwargs):  # this is a thread
+    time.sleep(5)
     bot = Bot(API_KEY)
     while True:
         before = time.time()
