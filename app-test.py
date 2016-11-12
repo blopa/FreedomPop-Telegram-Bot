@@ -1,11 +1,13 @@
 import time
-
+import logging
 from telegram import Bot
 from telegram import (ReplyKeyboardMarkup)
 import sys
 import thread
 import tools
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 USER_STEP, PASS_STEP, ACCESS, END = range(4)
@@ -66,39 +68,49 @@ def user(bot, update):
 		update.message.reply_text('Ops, it seems that you already have an account with us!')
 		return END
 	else:
-		update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
-		return PASS_STEP
+		userdb = tools.User(name=user.first_name, user_id=user.id)
+		if userdb.save():
+			update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
+			return PASS_STEP
+		else:
+			update.message.reply_text('Ops, something went wrong, try again!')
+			return END
 
 
 def passw(bot, update):
-	LOGIN.append(update.message.text)  # add email
-	update.message.reply_text('Great! Now send me the password.')
-
-	return ACCESS
+	user = update.message.from_user
+	result = tools.User.update(fp_user=update.message.text).where(tools.User.user_id == user.id)
+	if result.execute():
+		update.message.reply_text('Great! Now send me the password.')
+		return ACCESS
+	else:
+		update.message.reply_text('Ops, something went wrong, try again!')
+		return END
 
 
 def access(bot, update):
 	global USERS
-	LOGIN.append(update.message.text)  # add password
 	user = update.message.from_user
-	update.message.reply_text('Connecting...')
+	result = tools.User.update(fp_pass=update.message.text).where(tools.User.user_id == user.id)
+	if not result.execute():
+		update.message.reply_text('Ops, something went wrong, try again!')
+		return END
 
-	userdb = tools.User(name=user.first_name, user_id=user.id, fp_user=LOGIN[0], fp_pass=LOGIN[1])
+	update.message.reply_text('Connecting...')
+	userdb = tools.User.get(tools.User.user_id == user.id)
+	print userdb
 	userdb.initAPI()
-	global LOGIN
-	LOGIN = []
+	print userdb.api.initToken()
 	if userdb.api.initToken():
-		tools.db.connect()
 		try:
 			if userdb.save():
 				USERS = list(tools.User.select())
 				update.message.reply_text('Hooray, we are good to go!')
 			else:
 				update.message.reply_text('Something went wrong, send us your password again!')
-			tools.db.close()
 			return PASS_STEP
 		except Exception as e:
-			print "exception ", e
+			logger.exception(e)
 	else:
 		update.message.reply_text('Ops, your username of password doesnt seem right, please try again')
 		return USER_STEP
@@ -116,6 +128,8 @@ def checker(*args, **kwargs):  # this is a thread
 					for text in data['messages']:
 						print text['body']
 						bot.sendMessage(chat_id=user.user_id, text=text['body'])
+						read = user.api.setAsRead(text['id'])
+						logger.info(read)
 		duration = time.time() - before
 		#time.sleep(30 - (duration * 1000))
 		time.sleep(5)
