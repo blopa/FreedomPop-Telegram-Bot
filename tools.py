@@ -1,40 +1,57 @@
 from fpapi import FreedomPop
 from peewee import *
 import time
+import sys
 import json
+from cryptography.fernet import Fernet
 
-
+CRYPTO = Fernet(sys.argv[2])
 db = SqliteDatabase('mydb.db')
 
+
 class User(Model):
-	name = CharField()
-	user_id = CharField(unique=True)
-	fp_user = CharField(null=True)
-	fp_pass = CharField(null=True)
+    name = CharField()
+    user_id = CharField(unique=True)
+    fp_user = CharField(null=True)
+    fp_pass = CharField(null=True)
 
-	class Meta:
-		database = db
+    class Meta:
+        database = db
 
-	def __init__(self, *args, **kwargs):
-		self.api = None
-		super(User, self).__init__(*args, **kwargs)
+    def __init__(self, *args, **kwargs):
+        self.api = None
+        super(User, self).__init__(*args, **kwargs)
 
-	def timestamp2Str(self, timestamp):
-		return str(timestamp).replace('.', '').ljust(13, '0')
+    def timestamp2Str(self, timestamp):
+        return str(timestamp).replace('.', '').ljust(13, '0')
 
-	def initAPI(self):
-		if not self.api:
-			self.api = FreedomPop(self.fp_user, self.fp_pass)
+    def initAPI(self):
+        if not self.api:
+            decrypt_pass = decrypt(str(self.fp_pass))
+            self.api = FreedomPop(self.fp_user, decrypt_pass)
 
-	def checkNewSMS(self, range):  # TODO change from range to read/unread messages
-		self.initAPI()
-		currTime = float(time.time())
-		pastTime = currTime - range
-		req = self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False)
-		if req.status_code == 200:
-			return json.loads(req.content)
-		else:
-			return False
+    def checkNewSMS(self, range):  # TODO change from range to read/unread messages
+        self.initAPI()
+        currTime = float(time.time())
+        pastTime = currTime - range
+        req = self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False)
+        if req.status_code == 200:
+            return json.loads(req.content)
+        else:
+            return False
+
 
 def create_tb():
-	User.create_table(True)
+    User.create_table(True)
+
+
+def encrypt(plain_text):
+    if isinstance(plain_text, basestring):
+        string_text = str(plain_text)
+        return CRYPTO.encrypt(bytes(string_text))
+    else:
+        raise Exception('Only strings are allowed.')
+
+
+def decrypt(cipher_text):
+    return CRYPTO.decrypt(cipher_text)
