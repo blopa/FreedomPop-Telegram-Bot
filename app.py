@@ -1,141 +1,144 @@
-from telegram import (ReplyKeyboardMarkup)
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
-                          ConversationHandler)
-
-import sys
+import time
 import logging
-
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-
+from telegram import Bot
+from telegram import (ReplyKeyboardMarkup)
+import sys
+import thread
+import tools
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler)
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-GENDER, PHOTO, LOCATION, BIO = range(4)
+
+USER_STEP, PASS_STEP, ACCESS, END = range(4)
 API_KEY = sys.argv[1]
-
-
-def start(bot, update):
-    reply_keyboard = [['Boy', 'Girl', 'Other']]
-
-    update.message.reply_text(
-        'Hi! My name is Professor Bot. I will hold a conversation with you. '
-        'Send /cancel to stop talking to me.\n\n'
-        'Are you a boy or a girl?',
-        reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
-
-    return GENDER
-
-
-def gender(bot, update):
-    user = update.message.from_user
-    print user.id
-    logger.info("Gender of %s: %s" % (user.first_name, update.message.text))
-    update.message.reply_text('I see! Please send me a photo of yourself, '
-                              'so I know what you look like, or send /skip if you don\'t want to.')
-
-    return PHOTO
-
-
-def photo(bot, update):
-    user = update.message.from_user
-    photo_file = bot.getFile(update.message.photo[-1].file_id)
-    photo_file.download('user_photo.jpg')
-    logger.info("Photo of %s: %s" % (user.first_name, 'user_photo.jpg'))
-    update.message.reply_text('Gorgeous! Now, send me your location please, '
-                              'or send /skip if you don\'t want to.')
-
-    return LOCATION
-
-
-def skip_photo(bot, update):
-    user = update.message.from_user
-    logger.info("User %s did not send a photo." % user.first_name)
-    update.message.reply_text('I bet you look great! Now, send me your location please, '
-                              'or send /skip.')
-
-    return LOCATION
-
-
-def location(bot, update):
-    user = update.message.from_user
-    user_location = update.message.location
-    logger.info("Location of %s: %f / %f"
-                % (user.first_name, user_location.latitude, user_location.longitude))
-    update.message.reply_text('Maybe I can visit you sometime! '
-                              'At last, tell me something about yourself.')
-
-    return BIO
-
-
-def skip_location(bot, update):
-    user = update.message.from_user
-    logger.info("User %s did not send a location." % user.first_name)
-    update.message.reply_text('You seem a bit paranoid! '
-                              'At last, tell me something about yourself.')
-
-    return BIO
-
-
-def bio(bot, update):
-    user = update.message.from_user
-    logger.info("Bio of %s: %s" % (user.first_name, update.message.text))
-    update.message.reply_text('Thank you! I hope we can talk again some day.')
-
-    return ConversationHandler.END
-
-
-def cancel(bot, update):
-    user = update.message.from_user
-    logger.info("User %s canceled the conversation." % user.first_name)
-    update.message.reply_text('Bye! I hope we can talk again some day.')
-
-    return ConversationHandler.END
-
-
-def error(bot, update, error):
-    logger.warn('Update "%s" caused error "%s"' % (update, error))
+LOGIN = []
+USERS = [] #tools.User
+EMAIL = '[^@]+@[^@]+\.[^@]+'
 
 
 def main():
-    # Create the EventHandler and pass it your bot's token.
-    updater = Updater(API_KEY)
+	updater = Updater(API_KEY)
+	dispatcher = updater.dispatcher
+	tools.db.connect()
+	tools.create_tb()
+	getUsers()
+	tools.db.close()
+	thread.start_new_thread(checker, ('dunno', 2)) # dunno why I am sending this params
+	conv_handler = ConversationHandler(
+		entry_points=[CommandHandler('start', start)],
 
-    # Get the dispatcher to register handlers
-    dp = updater.dispatcher
+		states={
+			USER_STEP: [RegexHandler('^(Add account)$', user)],
 
-    # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler('start', start)],
+			PASS_STEP: [RegexHandler(EMAIL, passw)],
 
-        states={
-            GENDER: [RegexHandler('^(Boy|Girl|Other)$', gender)],
+			ACCESS: [MessageHandler(Filters.text, access)],
 
-            PHOTO: [MessageHandler(Filters.photo, photo),
-                    CommandHandler('skip', skip_photo)],
+			END: [MessageHandler(Filters.text, end)]
+		},
 
-            LOCATION: [MessageHandler(Filters.location, location),
-                       CommandHandler('skip', skip_location)],
+		fallbacks=[CommandHandler('cancel', cancel)]
+	)
+	dispatcher.add_handler(conv_handler)
+	updater.start_polling()
 
-            BIO: [MessageHandler(Filters.text, bio)]
-        },
 
-        fallbacks=[CommandHandler('cancel', cancel)]
-    )
+def end(bot, update):
+	return ConversationHandler.END
 
-    dp.add_handler(conv_handler)
 
-    # log all errors
-    dp.add_error_handler(error)
+def start(bot, update):
+	reply_keyboard = [['Add account']]
+	update.message.reply_text(
+		'Hello, Im a bot yay',
+		reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
 
-    # Start the Bot
-    updater.start_polling()
+	return USER_STEP
 
-    # Run the bot until the you presses Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
-    updater.idle()
+
+def cancel(bot, update):
+	return False
+
+
+def user(bot, update):
+	user = update.message.from_user
+	result = tools.User.select().where(tools.User.user_id == user.id)
+	if result:
+		update.message.reply_text('Ops, it seems that you already have an account with us!')
+		return END
+	else:
+		userdb = tools.User(name=user.first_name, user_id=user.id)
+		if userdb.save():
+			update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
+			return PASS_STEP
+		else:
+			update.message.reply_text('Ops, something went wrong, try again!')
+			return END
+
+
+def passw(bot, update):
+	user = update.message.from_user
+	result = tools.User.update(fp_user=update.message.text).where(tools.User.user_id == user.id)
+	if result.execute():
+		update.message.reply_text('Great! Now send me the password.')
+		return ACCESS
+	else:
+		update.message.reply_text('Ops, something went wrong, try again!')
+		return END
+
+
+def access(bot, update):
+	global USERS
+	user = update.message.from_user
+	result = tools.User.update(fp_pass=update.message.text).where(tools.User.user_id == user.id)
+	if not result.execute():
+		update.message.reply_text('Ops, something went wrong, try again!')
+		return END
+
+	update.message.reply_text('Connecting...')
+	userdb = tools.User.get(tools.User.user_id == user.id)
+	# logger.info(userdb)
+	userdb.initAPI()
+	# logger.info(userdb.api.initToken())
+	if userdb.api.initToken():
+		try:
+			if userdb.save():
+				USERS = list(tools.User.select())
+				update.message.reply_text('Hooray, we are good to go!')
+				return END
+			else:
+				update.message.reply_text('Something went wrong, send us your password again!')
+				return PASS_STEP
+		except Exception as e:
+			logger.exception(e)
+	else:
+		update.message.reply_text('Ops, your username or password doesnt seem right, please try again')
+		return USER_STEP
+
+
+def checker(*args, **kwargs):  # this is a thread
+	bot = Bot(API_KEY)
+	while True:
+		before = time.time()
+		users = list(USERS)
+		if users:
+			for user in users:
+				data = user.checkNewSMS(15)  # 604800 86400
+				if data:
+					for text in data['messages']:
+						logger.info(text['body'])
+						bot.sendMessage(chat_id=user.user_id, text=text['body'])
+						read = user.api.setAsRead(text['id'])
+						logger.info(read)
+		duration = time.time() - before
+		time.sleep(15 - (duration * 1000))
+
+
+def getUsers():
+	global USERS
+	USERS = list(tools.User.select())
 
 
 if __name__ == '__main__':
-    main()
+	main()

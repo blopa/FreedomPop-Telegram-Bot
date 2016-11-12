@@ -34,7 +34,7 @@ class User(Model):
 		if req.status_code == 200:
 			return json.loads(req.content)
 		else:
-			return False;
+			return False
 
 def create_tb():
 	User.create_table(True)
