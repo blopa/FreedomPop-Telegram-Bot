@@ -141,7 +141,7 @@ def access(bot, update):
                     USERS = list(tools.User.select())
                     update.message.reply_text('Hooray, we are good to go!')
                     try:
-                        botan.track(botan_token, update.message.from_user, update.message.to_dict(), update.message.text)
+                        botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
                     except Exception as e:
                         logger.exception(e)
                     return REPLY
@@ -181,6 +181,10 @@ def replyText(bot, update):
             userdb.api.initToken()
             if userdb.api.sendSMS(replyto, msg):
                 del REPLY_TO[usr.id]
+                try:
+                    botan.track(botan_token, update.message.from_user.id, {0: 'message sent'}, 'message sent')
+                except Exception as e:
+                    logger.exception(e)
                 update.message.reply_text('Message sent! YAY')
                 smsbalance = userdb.api.getSMSBalance()
                 if int(smsbalance['balanceSMS']) < 20:
@@ -241,6 +245,10 @@ def checker(*args, **kwargs):  # this is a thread
                         if usr.api.setAsRead(txt['id']):
                             text = prepareText(txt)
                             bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='HTML')
+                            try:
+                                botan.track(botan_token, usr.user_id, {0: 'message received'}, 'message received')
+                            except Exception as e:
+                                logger.exception(e)
                 else:
                     if usr.user_id not in ERROR_CONN:
                         ERROR_CONN[usr.user_id] = str(time.time())
