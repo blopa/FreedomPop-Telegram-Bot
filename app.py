@@ -21,6 +21,8 @@ USERS = []  #tools.User
 EMAIL = re.compile('[^@]+@[^@]+\.[^@]+')
 ALPHABET = string.ascii_lowercase[::-1]
 REPLY_TO = {}
+ERROR_CONN = {}
+FLAG_DEL = {}
 
 
 def main():
@@ -153,6 +155,12 @@ def access(bot, update):
 def replyText(bot, update):
     usr = update.message.from_user
     msg = update.message.text
+    if FLAG_DEL[usr.user_id] == '1':
+        remove = tools.User.delete().where(tools.User.user_id == usr.id).execute()
+        if remove:
+            bot.sendMessage(chat_id=usr.user_id, text='Something is wrong with your credentials, please register again')
+            del FLAG_DEL[usr.user_id]
+            return END
     if msg:
         if msg != "/cancel":
             replyto = REPLY_TO[usr.id]
@@ -173,6 +181,12 @@ def replyText(bot, update):
 def reply(bot, update):
     usr = update.message.from_user
     msg = update.message.text
+    if FLAG_DEL[usr.user_id] == '1':
+        remove = tools.User.delete().where(tools.User.user_id == usr.id).execute()
+        if remove:
+            bot.sendMessage(chat_id=usr.user_id, text='Something is wrong with your credentials, please register again')
+            del FLAG_DEL[usr.user_id]
+            return END
     if msg.startswith("/Reply"):
         msg = msg[6:].lower()
         replyto = ""
@@ -210,10 +224,14 @@ def checker(*args, **kwargs):  # this is a thread
                 data = usr.checkNewSMS(7200)  # 604800 86400
                 if data:
                     for txt in data['messages']:
-                        #  logger.info(text['body'])
-                        if user.api.setAsRead(txt['id']):
+                        if True:  #user.api.setAsRead(txt['id']):
                             text = prepareText(txt)
                             bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='MARKDOWN')
+                else:
+                    ERROR_CONN[usr.user_id] = str(int(ERROR_CONN[usr.user_id])+1)
+                    if int(ERROR_CONN[usr.user_id]) > 200:
+                        FLAG_DEL[usr.user_id] = '1'
+
         duration = time.time() - before
         #  time.sleep(15 - (duration * 1000))
         time.sleep(5)
