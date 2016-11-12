@@ -8,16 +8,19 @@ import thread
 import tools
 import string
 import random
+import re
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-USER_STEP, PASS_STEP, ACCESS, END = range(4)
+USER_STEP, PASS_STEP, ACCESS, END, REPLY, REPLY_TEXT = range(6)
 API_KEY = sys.argv[1]
 LOGIN = []
-USERS = [] #tools.User
-EMAIL = '[^@]+@[^@]+\.[^@]+'
+USERS = []  #tools.User
+EMAIL = re.compile('[^@]+@[^@]+\.[^@]+')
+ALPHABET = string.ascii_lowercase[::-1]
+REPLY_TO = {}
 
 
 def main():
@@ -27,16 +30,20 @@ def main():
     tools.create_tb()
     getUsers()
     tools.db.close()
-    thread.start_new_thread(checker, ('dunno', 2)) # dunno why I am sending this params
+    thread.start_new_thread(checker, ('dunno', 2))  # dunno why I am sending this params
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
 
         states={
-            USER_STEP: [RegexHandler('^(Add account)$', user)],
+            USER_STEP: [MessageHandler(Filters.text, user)],
 
-            PASS_STEP: [RegexHandler(EMAIL, passw)],
+            PASS_STEP: [MessageHandler(Filters.text, passw)],
 
             ACCESS: [MessageHandler(Filters.text, access)],
+
+            REPLY: [MessageHandler(Filters.text, reply)],
+
+            REPLY_TEXT: [MessageHandler(Filters.text, replyText)],
 
             END: [MessageHandler(Filters.text, end)]
         },
@@ -65,43 +72,52 @@ def cancel(bot, update):
 
 
 def user(bot, update):
-    user = update.message.from_user
-    result = tools.User.select().where(tools.User.user_id == user.id)
+    usr = update.message.from_user
+    if update.message.text != "Add account":
+        update.message.reply_text('Sorry, I didnt understand that, try again.')
+        return END
+
+    result = tools.User.select().where(tools.User.user_id == usr.id)
     if result:
         update.message.reply_text('Ops, it seems that you already have an account with us!')
         return END
+
+    userdb = tools.User(name=usr.first_name, user_id=usr.id)
+    if userdb.save():
+        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
+        return PASS_STEP
     else:
-        userdb = tools.User(name=user.first_name, user_id=user.id)
-        if userdb.save():
-            update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
-            return PASS_STEP
-        else:
-            update.message.reply_text('Ops, something went wrong, try again!')
-            return END
+        update.message.reply_text('Ops, something went wrong, try again!')
+        return END
 
 
 def passw(bot, update):
-    user = update.message.from_user
-    result = tools.User.update(fp_user=update.message.text).where(tools.User.user_id == user.id)
+    usr = update.message.from_user
+    if not EMAIL.match(update.message.text):
+        update.message.reply_text('That dosent seem like a valid email, try again!')
+        return PASS_STEP
+
+    result = tools.User.update(fp_user=update.message.text).where(tools.User.user_id == usr.id)
     if result.execute():
         update.message.reply_text('Great! Now send me the password.')
         return ACCESS
     else:
+        #  TODO drop user?
         update.message.reply_text('Ops, something went wrong, try again!')
         return END
 
 
 def access(bot, update):
     global USERS
-    user = update.message.from_user
+    usr = update.message.from_user
     encrypt_pass = tools.encrypt(update.message.text)
-    result = tools.User.update(fp_pass=encrypt_pass).where(tools.User.user_id == user.id)
+    result = tools.User.update(fp_pass=encrypt_pass).where(tools.User.user_id == usr.id)
     if not result.execute():
         update.message.reply_text('Ops, something went wrong, try again!')
         return END
 
     update.message.reply_text('Connecting...')
-    userdb = tools.User.get(tools.User.user_id == user.id)
+    userdb = tools.User.get(tools.User.user_id == usr.id)
     # logger.info(userdb)
     userdb.initAPI()
     # logger.info(userdb.api.initToken())
@@ -110,7 +126,7 @@ def access(bot, update):
             if userdb.save():
                 USERS = list(tools.User.select())
                 update.message.reply_text('Hooray, we are good to go!')
-                return END
+                return REPLY
             else:
                 update.message.reply_text('Something went wrong, send us your password again!')
                 return PASS_STEP
@@ -121,11 +137,45 @@ def access(bot, update):
         return USER_STEP
 
 
+def replyText(bot, update):
+    usr = update.message.from_user
+    msg = update.message.text
+    if msg != "/cancel":
+        replyto = REPLY_TO[usr.id]
+        apiuser = tools.User.select().where(tools.User.user_id == usr.id)
+        if apiuser.api.sendSMS(replyto, msg):
+            del REPLY_TO[usr.id]
+            update.message.reply_text('Message sent! YAY')
+        else:
+            update.message.reply_text('Something went wrong, try again!')
+    else:
+        update.message.reply_text('Ok, reply canceled.')
+
+    return REPLY
+
+
+def reply(bot, update):
+    usr = update.message.from_user
+    msg = update.message.text
+    if msg.startswith("/Reply"):
+        msg = msg[6:].lower()
+        replyto = ""
+        for l in msg:
+            replyto += ALPHABET.index(l)
+        REPLY_TO[usr.id] = replyto
+        update.message.reply_text('Alright, send the message or /cancel to cancel.')
+        return REPLY_TEXT
+    else:
+        update.message.reply_text('Sorry, I didnt understand that, try again.')
+
+    return REPLY
+
+
 def prepareText(txt):
     reply = ""
     sender = txt['from']  # phone number
     for n in sender:
-        letter = string.ascii_lowercase[::-1][int(n)]
+        letter = ALPHABET[int(n)]
         reply += random.choice([letter.upper(), letter])
     #  reply = reply.encode('rot13')  # obfuscated phone number
     date = datetime.datetime.fromtimestamp(float(txt['date'])/1000).strftime('%d/%m/%Y %H:%M:%S')  # date

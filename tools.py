@@ -34,11 +34,7 @@ class User(Model):
         self.initAPI()
         currTime = float(time.time())
         pastTime = currTime - range
-        req = self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False)
-        if req.status_code == 200:
-            return json.loads(req.content)
-        else:
-            return False
+        return self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False)
 
 
 def create_tb():

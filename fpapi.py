@@ -62,7 +62,11 @@ class FreedomPop:
             return {}
         params = dict(accessToken=self.accessToken, startDate=startDate, endDate=endDate, includeDeleted=str(includeDeleted).lower(), includeRead=str(includeRead).lower())
         url = self.endPoint + '/phone/listsms/'
-        return requests.get(url, params=params)
+        req = requests.get(url, params=params)
+        if req.status_code == 200:
+            return json.loads(req.content)
+        else:
+            return False
 
     def getAllSMS(self):
         return self._getBasic("/phone/listsms")
@@ -102,7 +106,11 @@ class FreedomPop:
             return {}
         url = self.endPoint + '/phone/sendsms/?accessToken=' + self.accessToken + '&to_numbers=' + to_numbers + '&message_body=' + message_body
         files = {'media_file': (None, 'none')}
-        return requests.post(url, files=files)
+        req = requests.post(url, files=files)
+        if req.status_code == 200:
+            return json.loads(req.content)
+        else:
+            return False
 
     def setAsRead(self, message_id):  # TODO
         if not self.initToken():
