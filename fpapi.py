@@ -1,4 +1,4 @@
-import urllib, urllib2, json, base64, datetime
+import urllib, urllib2, json, base64, datetime, requests
 from pprint import pprint
 
 class FreedomPop:
@@ -53,6 +53,7 @@ class FreedomPop:
             return {}
         params = urllib.urlencode(dict(accessToken = self.accessToken))
         url = "%s/%s?%s" % (self.endPoint, command, params)
+        print(url)
         try:
             buffer = urllib2.urlopen(url).read()
             return json.loads(buffer)
@@ -60,6 +61,12 @@ class FreedomPop:
             print "HTTP Error:", e.code
             print e.read()
             return False
+
+    def getPhone(self):
+        return self._getBasic("/phone/getnumbers/1")
+
+    def getSMS(self):
+        return self._getBasic("/phone/listsms")
 
     def getUsage(self):
         return self._getBasic("user/usage")
@@ -91,37 +98,17 @@ class FreedomPop:
     def getFriends(self):
         return self._getBasic("friends")
 
+    def sendSMS(self, to_numbers, message_body):
+        if not self.initToken():
+            return {}
+        url = 'https://api.freedompop.com/phone/sendsms/?accessToken=' + self.accessToken + '&to_numbers=' + to_numbers + '&message_body=' + message_body
+        files = {'media_file': (None, 'none')}
+        return requests.post(url, files=files)
+
     def printMyInfo(self):
         usage = self.getUsage()
         inMB = 1024 * 1024
         endTime = datetime.datetime.fromtimestamp(usage["endTime"] / 1000) 
         delta = endTime - datetime.datetime.now()
         print "Data used: %0.2f%% (%0.2f MB of %0.2f MB) Time until quota reset: %d days %d hours (%s)" % (usage["percentUsed"] * 100, usage["planLimitUsed"] / inMB, usage["totalLimit"] / inMB, delta.days, delta.seconds / 3600, endTime )
-
-
-def run(username, password):
-    fp = FreedomPop(username, password)
-    fp.printMyInfo()
-    """
-    Full list of methods:
-    fp.getUsage()       # get the data usage, begin/end quota period, quota MB bonuses.
-    fp.getPlan()        # get current plan
-    fp.getPlans()       # list of available plans
-    fp.getService()     # get current subscribed service
-    fp.getServices()    # list of available services
-    fp.getInfo()        # get the account's first/last name, last login time, email address
-    fp.getFriends()     # list of people friended this account
-    fp.Contacts()       # I'm not sure what this for
-    # there are some other API that can update/write to your account that I reluctant to expose it here...
-    
-    """
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) < 3:
-        print "Usage: python api.py <username> <password>"
-        sys.exit()
-
-    run(sys.argv[1], sys.argv[2]) 
-
 
