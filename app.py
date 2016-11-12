@@ -211,7 +211,7 @@ def checker(*args, **kwargs):  # this is a thread
                 if data:
                     for txt in data['messages']:
                         #  logger.info(text['body'])
-                        if True:  #user.api.setAsRead(txt['id']):
+                        if user.api.setAsRead(txt['id']):
                             text = prepareText(txt)
                             bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='MARKDOWN')
         duration = time.time() - before
