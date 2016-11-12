@@ -10,7 +10,8 @@ import string
 import random
 import re
 import cgi
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler)
+import botan
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,7 @@ ALPHABET = string.ascii_lowercase[::-1]
 REPLY_TO = {}
 ERROR_CONN = {}
 FLAG_DEL = {}
+botan_token = sys.argv[5]
 
 
 def main():
@@ -138,6 +140,7 @@ def access(bot, update):
                 if result.execute():
                     USERS = list(tools.User.select())
                     update.message.reply_text('Hooray, we are good to go!')
+                    botan.track(botan_token, update.message.from_user.id)
                     return REPLY
                 else:
                     update.message.reply_text('Something went wrong, send us your password again!')
