@@ -16,7 +16,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 
-END, USER_STEP, PASS_STEP, ACCESS, REPLY, REPLY_TEXT = range(6)
+END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
 API_KEY = sys.argv[1]
 LOGIN = []
 USERS = []  #tools.User
@@ -46,9 +46,11 @@ def main():
 
             ACCESS: [MessageHandler(Filters.text, access)],
 
-            REPLY: [MessageHandler(Filters.command, reply)],
+            COMP_STATE: [MessageHandler(Filters.command, composeState)],
 
-            REPLY_TEXT: [MessageHandler(Filters.all, replyText)],
+            SEND_TEXT: [MessageHandler(Filters.all, sendText)],
+
+            SEND_NUMBER: [MessageHandler(Filters.all, sendNumber)],
 
             END: [MessageHandler(Filters.text, end)]
         },
@@ -70,9 +72,9 @@ def start(bot, update):
         result = tools.User.select().where(tools.User.user_id == usr.id).execute()
         if result:
             userdb = tools.User.get(tools.User.user_id == usr.id)
-            funcs = {1: user, 2: passw, 3: access, 4: reply, 5: replyText}
+            funcs = {1: user, 2: passw, 3: access, 4: composeState, 5: sendText}
             return funcs[int(userdb.conver_state)](bot, update)
-        elif msg.startswith('/start'):
+        else: #  elif msg.startswith('/start'):
             reply_keyboard = [['Register account']]
             update.message.reply_text('Hello, Im a bot that allow you to log into your FreedomPop account and start '
                                       'receiving and sending SMS from Telegram! AWESOME, right?',
@@ -136,7 +138,7 @@ def access(bot, update):
     if userdb.api.initToken():
         try:
             if userdb.save():
-                result = tools.User.update(conver_state=REPLY).where(tools.User.user_id == usr.id)
+                result = tools.User.update(conver_state=COMP_STATE).where(tools.User.user_id == usr.id)
                 if result.execute():
                     USERS = list(tools.User.select())
                     update.message.reply_text('Hooray, we are good to go!')
@@ -144,7 +146,7 @@ def access(bot, update):
                         botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
                     except Exception as e:
                         logger.exception(e)
-                    return REPLY
+                    return COMP_STATE
                 else:
                     update.message.reply_text('Something went wrong, send us your password again!')
                     return PASS_STEP
@@ -168,7 +170,25 @@ def checkConnProblem(update, user_id):
     return False
 
 
-def replyText(bot, update):
+def sendNumber(bot, update):
+    usr = update.message.from_user
+    msg = update.message.text
+    if checkConnProblem(update, usr.id):
+        return END
+    if msg:
+        if msg != "/cancel":
+            non_decimal = re.compile(r'[^\d]+')
+            msg = non_decimal.sub('', msg)
+            REPLY_TO[usr.id] = msg
+            update.message.reply_text('Alright, send the message or /cancel to cancel.')
+            return SEND_TEXT
+    else:
+        update.message.reply_text('Ok, canceled.')
+
+    return COMP_STATE
+
+
+def sendText(bot, update):
     usr = update.message.from_user
     msg = update.message.text
     if checkConnProblem(update, usr.id):
@@ -193,12 +213,12 @@ def replyText(bot, update):
             else:
                 update.message.reply_text('Something went wrong, try again!')
         else:
-            update.message.reply_text('Ok, reply canceled.')
+            update.message.reply_text('Ok, message canceled.')
 
-    return REPLY
+    return COMP_STATE
 
 
-def reply(bot, update):
+def composeState(bot, update):
     usr = update.message.from_user
     msg = update.message.text
     if checkConnProblem(update, usr.id):
@@ -210,11 +230,14 @@ def reply(bot, update):
             replyto += str(ALPHABET.index(l))
         REPLY_TO[usr.id] = replyto
         update.message.reply_text('Alright, send the message or /cancel to cancel.')
-        return REPLY_TEXT
+        return SEND_TEXT
+    elif msg.startswith("/new_message"):
+        update.message.reply_text('Alright, send me the phone number w/ country code or /cancel to cancel.')
+        return SEND_NUMBER
     else:
         update.message.reply_text('Sorry, I didnt understand that, try again.')
 
-    return REPLY
+    return COMP_STATE
 
 
 def prepareText(txt):
