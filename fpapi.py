@@ -1,5 +1,6 @@
 import urllib, urllib2, json, base64, datetime, requests
 
+
 class FreedomPop:
 	refreshToken = None
 	token = None
@@ -64,7 +65,7 @@ class FreedomPop:
 	def getPhone(self):
 		return self._getBasic("/phone/getnumbers/1")
 
-	def getSMS(self, startDate, endDate, includeDeleted, includeRead):
+	def getSMS(self, startDate, endDate, includeDeleted, includeRead):  # TODO
 		if not self.initToken():
 			return {}
 		url = 'https://api.freedompop.com/phone/listsms/?accessToken=' + self.accessToken + '&startDate=' + startDate + '&endDate=' + endDate + '&includeDeleted=' + str(includeDeleted).lower() + '&includeRead=' + str(includeRead).lower()
@@ -103,14 +104,14 @@ class FreedomPop:
 	def getFriends(self):
 		return self._getBasic("friends")
 
-	def sendSMS(self, to_numbers, message_body):
+	def sendSMS(self, to_numbers, message_body):  # TODO
 		if not self.initToken():
 			return {}
 		url = 'https://api.freedompop.com/phone/sendsms/?accessToken=' + self.accessToken + '&to_numbers=' + to_numbers + '&message_body=' + message_body
 		files = {'media_file': (None, 'none')}
 		return requests.post(url, files=files)
 
-	def setAsRead(self, message_id):
+	def setAsRead(self, message_id):  # TODO
 		if not self.initToken():
 			return {}
 		url = 'https://api.freedompop.com/phone/sms/read/?accessToken=' + self.accessToken + '&messageIds=' + message_id
@@ -122,4 +123,3 @@ class FreedomPop:
 		endTime = datetime.datetime.fromtimestamp(usage["endTime"] / 1000) 
 		delta = endTime - datetime.datetime.now()
 		print "Data used: %0.2f%% (%0.2f MB of %0.2f MB) Time until quota reset: %d days %d hours (%s)" % (usage["percentUsed"] * 100, usage["planLimitUsed"] / inMB, usage["totalLimit"] / inMB, delta.days, delta.seconds / 3600, endTime )
-
