@@ -140,7 +140,10 @@ def access(bot, update):
                 if result.execute():
                     USERS = list(tools.User.select())
                     update.message.reply_text('Hooray, we are good to go!')
-                    botan.track(botan_token, update.message.from_user.id)
+                    try:
+                        botan.track(botan_token, update.message.from_user, update.message.to_dict(), update.message.text)
+                    except Exception as e:
+                        logger.exception(e)
                     return REPLY
                 else:
                     update.message.reply_text('Something went wrong, send us your password again!')
