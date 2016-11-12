@@ -35,7 +35,7 @@ class User(Model):
         self.initAPI()
         currTime = float(time.time())
         pastTime = currTime - range
-        return self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False)
+        return self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False, False)
 
 
 def create_tb():

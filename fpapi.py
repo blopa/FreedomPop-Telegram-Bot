@@ -54,19 +54,49 @@ class FreedomPop:
         buffer = requests.get(url, params=params).content
         return json.loads(buffer)
 
-    def getPhone(self):
-        return self._getBasic("/phone/getnumbers/1")
+    def getPhoneNumbers(self, qtd):
+        return self._getBasic("phone/getnumbers/" + qtd)
 
-    def getSMS(self, startDate, endDate, includeDeleted, includeRead):  # TODO
+    def getAccountInfo(self):
+        return self._getBasic("phone/account/info")
+
+    def getSMS(self, startDate, endDate, includeDeleted, includeRead, includeOutgoing):  # TODO
         if not self.initToken():
             return {}
-        params = dict(accessToken=self.accessToken, startDate=startDate, endDate=endDate, includeDeleted=str(includeDeleted).lower(), includeRead=str(includeRead).lower())
+        params = dict(accessToken=self.accessToken, startDate=startDate, endDate=endDate, includeDeleted=str(includeDeleted).lower(), includeRead=str(includeRead).lower(), includeOutgoing=str(includeOutgoing).lower())
         url = self.endPoint + '/phone/listsms/'
         req = requests.get(url, params=params)
         if req.status_code == 200:
             return json.loads(req.content)
         else:
             return False
+
+    def getSMSBalance(self):
+        usage = self.getUsage()
+        if not usage:
+            return False
+        info = self.getAccountInfo()
+        if not info:
+            return False
+        sms = self.getSMS(usage['startTime'], '', False, True, True)  # get sms including outgoing
+        if not sms:
+            return False
+
+        base = info['voiceplan']['baseSMS']
+        count = 0
+        details = {}
+        for t in sms['messages']:
+            if t['from'] == str(info['phoneNumber']):  # count sent sms
+                count += 1
+
+        details['phoneNumber'] = str(info['phoneNumber'])
+        details['startTime'] = str(usage['startTime'])
+        details['planName'] = str(info['voiceplan']['name'])
+        details['description'] = str(info['voiceplan']['description'])
+        details['baseSMS'] = str(info['voiceplan']['baseSMS'])
+        details['balanceSMS'] = str(int(base) - count)
+
+        return details
 
     def getAllSMS(self):
         return self._getBasic("/phone/listsms")

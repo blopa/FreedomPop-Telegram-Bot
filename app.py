@@ -9,6 +9,7 @@ import tools
 import string
 import random
 import re
+import cgi
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler, ConversationHandler)
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -151,15 +152,21 @@ def access(bot, update):
         return USER_STEP
 
 
+def checkConnProblem(update, user_id):
+    if user_id in FLAG_DEL:
+        if FLAG_DEL[user_id] == '1':
+            if tools.remove_user(user_id):
+                update.message.reply_text('Something is wrong with your credentials, please register again')
+                del FLAG_DEL[user_id]
+                return True
+    return False
+
+
 def replyText(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    if usr.id in FLAG_DEL:
-        if FLAG_DEL[usr.id] == '1':
-            if tools.remove_user(usr.id):
-                update.message.reply_text('Something is wrong with your credentials, please register again')
-                del FLAG_DEL[usr.id]
-                return END
+    if checkConnProblem(update, usr.id):
+        return END
     if msg:
         if msg != "/cancel":
             replyto = REPLY_TO[usr.id]
@@ -169,6 +176,10 @@ def replyText(bot, update):
             if userdb.api.sendSMS(replyto, msg):
                 del REPLY_TO[usr.id]
                 update.message.reply_text('Message sent! YAY')
+                smsbalance = userdb.api.getSMSBalance()
+                if int(smsbalance['balanceSMS']) < 20:
+                    rep_text = 'You have only ' + smsbalance['balanceSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['planName'] + '" plan.'
+                    update.message.reply_text(rep_text)
             else:
                 update.message.reply_text('Something went wrong, try again!')
         else:
@@ -180,12 +191,8 @@ def replyText(bot, update):
 def reply(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    if usr.id in FLAG_DEL:
-        if FLAG_DEL[usr.id] == '1':
-            if tools.remove_user(usr.id):
-                update.message.reply_text('Something is wrong with your credentials, please register again')
-                del FLAG_DEL[usr.id]
-                return END
+    if checkConnProblem(update, usr.id):
+        return END
     if msg.startswith("/Reply"):
         msg = msg[6:].lower()
         replyto = ""
@@ -208,8 +215,8 @@ def prepareText(txt):
         reply += random.choice([letter.upper(), letter])
     #  reply = reply.encode('rot13')  # obfuscated phone number
     date = datetime.datetime.fromtimestamp(float(txt['date'])/1000).strftime('%d/%m/%Y %H:%M:%S')  # date
-    content = txt['body']  # text content
-    return "*Reply:* /Reply%s\n*From: +%s @ %s*\n\n%s" % (reply, sender, date, content)
+    content = cgi.escape(txt['body'])  # text content
+    return "<b>Reply:</b> /Reply%s\n<b>From: +%s @ %s</b>\n\n%s" % (reply, sender, date, content)
 
 
 def checker(*args, **kwargs):  # this is a thread
@@ -227,7 +234,7 @@ def checker(*args, **kwargs):  # this is a thread
                     for txt in data['messages']:
                         if usr.api.setAsRead(txt['id']):
                             text = prepareText(txt)
-                            bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='MARKDOWN')
+                            bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='HTML')
                 else:
                     if usr.user_id not in ERROR_CONN:
                         ERROR_CONN[usr.user_id] = str(time.time())
