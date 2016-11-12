@@ -9,8 +9,8 @@ db = SqliteDatabase('mydb.db')
 class User(Model):
 	name = CharField()
 	user_id = CharField(unique=True)
-	fp_user = CharField(unique=True)
-	fp_pass = CharField(unique=True)
+	fp_user = CharField(unique=False)
+	fp_pass = CharField(unique=False)
 
 	class Meta:
 		database = db
@@ -22,12 +22,12 @@ class User(Model):
 	def timestamp2Str(self, timestamp):
 		return str(timestamp).replace('.', '').ljust(13, '0')
 
-	def getConn(self):
+	def initAPI(self):
 		if not self.api:
 			self.api = FreedomPop(self.fp_user, self.fp_pass)
 
 	def checkNewSMS(self, range):  # TODO change from range to read/unread messages
-		self.getConn()
+		self.initAPI()
 		currTime = float(time.time())
 		pastTime = currTime - range
 		req = self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, True)

@@ -21,6 +21,7 @@ def main():
 	tools.db.connect()
 	tools.create_tb()
 	getUsers()
+	tools.db.close()
 	thread.start_new_thread(checker, ('dunno', 2)) # dunno why I am sending this params
 	conv_handler = ConversationHandler(
 		entry_points=[CommandHandler('start', start)],
@@ -83,24 +84,29 @@ def access(bot, update):
 	update.message.reply_text('Connecting...')
 
 	userdb = tools.User(name=user.first_name, user_id=user.id, fp_user=LOGIN[0], fp_pass=LOGIN[1])
-	#userdb = tools.testConn(userdb.fp_user, userdb.fp_pass)
-	if userdb.getConn():
-		if userdb.save():
-			#USERS.append(userdb) TODO
-			USERS = tools.User.select()
-			update.message.reply_text('Hooray, we are good to go!')
-		else:
-			update.message.reply_text('Something went wrong, send us your password again!')
-		return PASS_STEP
+	userdb.initAPI()
+	global LOGIN
+	LOGIN = []
+	if userdb.api.initToken():
+		tools.db.connect()
+		try:
+			if userdb.save():
+				USERS = list(tools.User.select())
+				update.message.reply_text('Hooray, we are good to go!')
+			else:
+				update.message.reply_text('Something went wrong, send us your password again!')
+			tools.db.close()
+			return PASS_STEP
+		except Exception as e:
+			print "exception ", e
 	else:
-		update.message.reply_text('Ops, your username of password doesent seem right, please try again')
+		update.message.reply_text('Ops, your username of password doesnt seem right, please try again')
 		return USER_STEP
 
 
 def checker(*args, **kwargs):  # this is a thread
 	bot = Bot(API_KEY)
 	while True:
-		print 'to rodando'
 		before = time.time()
 		users = list(USERS)
 		if users:
@@ -117,7 +123,7 @@ def checker(*args, **kwargs):  # this is a thread
 
 def getUsers():
 	global USERS
-	USERS = tools.User.select()
+	USERS = list(tools.User.select())
 
 
 if __name__ == '__main__':
