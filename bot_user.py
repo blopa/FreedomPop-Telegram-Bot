@@ -1,4 +1,4 @@
-from fpapi import FreedomPop
+from api.freedompop import FreedomPop
 from peewee import *
 import time
 import sys

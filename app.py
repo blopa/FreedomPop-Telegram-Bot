@@ -1,17 +1,18 @@
-import time
+import cgi
 import datetime
-from telegram import Bot
-from telegram import (ReplyKeyboardMarkup)
-import sys
-import thread
-import tools
-import string
+import logging
 import random
 import re
-import cgi
-import botan
+import string
+import sys
+import thread
+import time
+from telegram import Bot
+from telegram import (ReplyKeyboardMarkup)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
-import logging
+import bot_user
+from api import botan
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
 API_KEY = sys.argv[1]
 LOGIN = []
-USERS = []  #tools.User
+USERS = []  #bot_user.User
 EMAIL = re.compile("[^@]+@[^@]+\.[^@]+")
 ALPHABET = string.ascii_lowercase[::-1]
 REPLY_TO = {}
@@ -31,10 +32,10 @@ botan_token = sys.argv[5]
 def main():
     updater = Updater(API_KEY)
     dispatcher = updater.dispatcher
-    tools.db.connect()
-    tools.create_tb()
+    bot_user.db.connect()
+    bot_user.create_tb()
     getUsers()
-    # tools.db.close()
+    # bot_user.db.close()
     thread.start_new_thread(checker, ('dunno', 2))  # dunno why I am sending this params
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(Filters.all, start)],
@@ -69,9 +70,9 @@ def start(bot, update):
     usr = update.message.from_user
     msg = update.message.text
     if msg:
-        result = tools.User.select().where(tools.User.user_id == usr.id).execute()
+        result = bot_user.User.select().where(bot_user.User.user_id == usr.id).execute()
         if result:
-            userdb = tools.User.get(tools.User.user_id == usr.id)
+            userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
             funcs = {1: user, 2: passw, 3: access, 4: composeState, 5: sendText}
             return funcs[int(userdb.conver_state)](bot, update)
         else: #  elif msg.startswith('/start'):
@@ -91,15 +92,15 @@ def cancel(bot, update):
 def user(bot, update):
     usr = update.message.from_user
     if update.message.text != "Register account":
-        update.message.reply_text('Sorry, I didnt understand that, try again. Try typing "Register account".')
+        update.message.reply_text('Sorry, I didnt understand that, try typing "Register account".')
         return END
 
-    result = tools.User.select().where(tools.User.user_id == usr.id)
+    result = bot_user.User.select().where(bot_user.User.user_id == usr.id)
     if result.execute():
         update.message.reply_text('Ops, it seems that you already have an account with us!')
-        return END
+        return COMP_STATE # TODO
 
-    userdb = tools.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
+    userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
         update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
         return PASS_STEP
@@ -114,9 +115,9 @@ def passw(bot, update):
         update.message.reply_text('That dosent seem like a valid email, try again!')
         return PASS_STEP
 
-    result = tools.User.update(fp_user=update.message.text, conver_state=ACCESS).where(tools.User.user_id == usr.id)
+    result = bot_user.User.update(fp_user=update.message.text, conver_state=ACCESS).where(bot_user.User.user_id == usr.id)
     if result.execute():
-        update.message.reply_text('Great! Now send me the password.')
+        update.message.reply_text('Great! Now send me the password.') # TODO add message to delete password
         return ACCESS
     else:
         update.message.reply_text('Ops, something went wrong, try again!')
@@ -126,23 +127,23 @@ def passw(bot, update):
 def access(bot, update):
     global USERS
     usr = update.message.from_user
-    encrypt_pass = tools.encrypt(update.message.text)
-    result = tools.User.update(fp_pass=encrypt_pass).where(tools.User.user_id == usr.id)
+    encrypt_pass = bot_user.encrypt(update.message.text)
+    result = bot_user.User.update(fp_pass=encrypt_pass).where(bot_user.User.user_id == usr.id)
     if not result.execute():
         update.message.reply_text('Ops, something went wrong, try again!')
         return END
 
     update.message.reply_text('Connecting...')
-    userdb = tools.User.get(tools.User.user_id == usr.id)
+    userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
     userdb.initAPI()
     if userdb.api.initToken():
         try:
             if userdb.save():
-                result = tools.User.update(conver_state=COMP_STATE).where(tools.User.user_id == usr.id)
+                result = bot_user.User.update(conver_state=COMP_STATE).where(bot_user.User.user_id == usr.id)
                 if result.execute():
-                    USERS = list(tools.User.select())
+                    USERS = list(bot_user.User.select())
                     update.message.reply_text('Hooray, we are good to go!')
-                    update.message.reply_text('User /new_message to compose a new message. Or simply /new <PHONE_NUMBER>')
+                    update.message.reply_text('Use /new_message to compose a new message. Or simply /new <PHONE_NUMBER>')
                     try:
                         botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
                     except Exception as e:
@@ -157,15 +158,15 @@ def access(bot, update):
         except Exception as e:
             logger.exception(e)
     else:
-        update.message.reply_text('Ops, your username or password doesnt seem right, please try again')
+        update.message.reply_text('Ops, your username or password doesnt seem right, please try again.')
         return USER_STEP
 
 
 def checkConnProblem(update, user_id):
     if user_id in FLAG_DEL:
         if FLAG_DEL[user_id] == '1':
-            if tools.remove_user(user_id):
-                update.message.reply_text('Something is wrong with your credentials, please register again')
+            if bot_user.remove_user(user_id):
+                update.message.reply_text('Something is wrong with your credentials, please register again.')
                 del FLAG_DEL[user_id]
                 return True
     return False
@@ -200,7 +201,7 @@ def sendText(bot, update):
     if msg:
         if msg != "/cancel":
             replyto = REPLY_TO[usr.id]
-            userdb = tools.User.get(tools.User.user_id == usr.id)
+            userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
             userdb.initAPI()
             userdb.api.initToken()
             if userdb.api.sendSMS(replyto, msg):
@@ -299,7 +300,7 @@ def checker(*args, **kwargs):  # this is a thread
 def getUsers():
     global USERS
     try:
-        USERS = list(tools.User.select())
+        USERS = list(bot_user.User.select())
     except Exception as e:
         logger.exception(e)
 
