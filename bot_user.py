@@ -33,7 +33,7 @@ class User(Model):
             decrypt_pass = decrypt(str(self.fp_pass))
             self.api = FreedomPop(self.fp_user, decrypt_pass)
 
-    def checkNewSMS(self, range):  # TODO change from range to read/unread messages
+    def checkNewSMS(self, range):
         try:
             self.initAPI()
             currTime = float(time.time())

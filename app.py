@@ -98,7 +98,7 @@ def user(bot, update):
     result = bot_user.User.select().where(bot_user.User.user_id == usr.id)
     if result.execute():
         update.message.reply_text('Ops, it seems that you already have an account with us!')
-        return COMP_STATE # TODO
+        return COMP_STATE
 
     userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
@@ -179,10 +179,9 @@ def sendNumber(bot, update):
         return END
     if msg:
         if msg != "/cancel":
-            non_decimal = re.compile(r'[^\d]+')
-            msg = non_decimal.sub('', msg)
+            phonenumber = validateNumber(msg)
             if msg:
-                REPLY_TO[usr.id] = msg
+                REPLY_TO[usr.id] = phonenumber
                 update.message.reply_text('Alright, send the message or /cancel to cancel.')
                 return SEND_TEXT
             else:
@@ -212,7 +211,7 @@ def sendText(bot, update):
                     logger.exception(e)
                 update.message.reply_text('Message sent! YAY')
                 smsbalance = userdb.api.getSMSBalance()
-                if int(smsbalance['balanceSMS']) < 20:
+                if int(smsbalance['remainingSMS']) < 20:
                     rep_text = 'You have only ' + smsbalance['balanceSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['planName'] + '" plan.'
                     update.message.reply_text(rep_text)
             else:
@@ -239,11 +238,10 @@ def composeState(bot, update):
     elif msg.startswith("/new_message"):
         update.message.reply_text('Alright, send me the phone number w/ country code or /cancel to cancel.')
         return SEND_NUMBER
-    elif msg.startswith("/new"): #  TODO DRY
-        non_decimal = re.compile(r'[^\d]+')
-        msg = non_decimal.sub('', msg[4:])
+    elif msg.startswith("/new"):
+        phonenumber = validateNumber(msg[4:])
         if msg:
-            REPLY_TO[usr.id] = msg
+            REPLY_TO[usr.id] = phonenumber
             update.message.reply_text('Alright, send the message or /cancel to cancel.')
             return SEND_TEXT
         else:
@@ -252,6 +250,11 @@ def composeState(bot, update):
         update.message.reply_text('Sorry, I didnt understand that, try again.')
 
     return COMP_STATE
+
+
+def validateNumber(message):
+    non_decimal = re.compile(r'[^\d]+')
+    return non_decimal.sub('', message)
 
 
 def prepareText(txt):
