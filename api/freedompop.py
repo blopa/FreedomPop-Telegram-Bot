@@ -11,8 +11,9 @@ class FreedomPop:
     tokenExpireTimestamp = None
     accessToken = None
 
-    _apiClient = sys.argv[3]
-    _apiSecret = sys.argv[4]
+    _apiClient = sys.argv[4]
+    _apiSecret = sys.argv[5]
+    _apiApp = sys.argv[6]
     endPoint = "https://api.freedompop.com"
 
     def __init__(self, username, password):
@@ -71,32 +72,60 @@ class FreedomPop:
         else:
             return False
 
+    def getBalance(self, verNum):
+        if not self.initToken():
+            return {}
+        appVer = self._apiApp + str(verNum)
+        print 'Trying app version %s' % (appVer)
+        params = dict(accessToken=self.accessToken, appIdVersion=appVer)
+        url = self.endPoint + '/phone/balance/'
+        req = requests.get(url, params=params)
+        if req.status_code == 200:
+            data = json.loads(req.content)
+            if data.__contains__('error') and verNum < 20:  # recursively until 20
+                data = self.getBalance(verNum + 1)
+            return data
+        else:
+            return False
+
     def getSMSBalance(self):
-        usage = self.getUsage()
-        if not usage:
-            return False
-        info = self.getAccountInfo()
-        if not info:
-            return False
-        sms = self.getSMS(usage['startTime'], '', False, True, True)  # get sms including outgoing
-        if not sms:
-            return False
-
-        base = info['voiceplan']['baseSMS']
-        count = 0
         details = {}
-        for t in sms['messages']:
-            if t['from'] == str(info['phoneNumber']):  # count sent sms
-                count += 1
+        data = self.getBalance(2)  # number of appversion to start
+        if data:
+            for dt in data:
+                if dt['type'] == 'VOICE_PLAN':
+                    details['name'] = str(dt['name'])
+                    details['description'] = str(dt['description'])
+                    details['baseSMS'] = str(dt['baseSMS'])
+                    details['remainingSMS'] = str(dt['balance']['remainingSMS'])
 
-        details['phoneNumber'] = str(info['phoneNumber'])
-        details['startTime'] = str(usage['startTime'])
-        details['planName'] = str(info['voiceplan']['name'])
-        details['description'] = str(info['voiceplan']['description'])
-        details['baseSMS'] = str(info['voiceplan']['baseSMS'])
-        details['balanceSMS'] = str(int(base) - count)
+                    return details
+            return False
+        else:
+            usage = self.getUsage()
+            if not usage:
+                return False
+            info = self.getAccountInfo()
+            if not info:
+                return False
+            sms = self.getSMS(usage['startTime'], '', False, True, True)  # get sms including outgoing
+            if not sms:
+                return False
 
-        return details
+            base = info['voiceplan']['baseSMS']
+            count = 0
+            for t in sms['messages']:
+                if t['from'] == str(info['phoneNumber']):  # count sent sms
+                    count += 1
+
+            # details['phoneNumber'] = str(info['phoneNumber'])
+            # details['startTime'] = str(usage['startTime'])
+            details['name'] = str(info['voiceplan']['name'])
+            details['description'] = str(info['voiceplan']['description'])
+            details['baseSMS'] = str(info['voiceplan']['baseSMS'])
+            details['remainingSMS'] = str(int(base) - count)
+
+            return details
 
     def getAllSMS(self):
         return self._getBasic("/phone/listsms")
