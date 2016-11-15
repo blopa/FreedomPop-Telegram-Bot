@@ -264,9 +264,10 @@ def prepareText(txt):
         letter = ALPHABET[int(n)]
         reply += random.choice([letter.upper(), letter])
     #  reply = reply.encode('rot13')  # obfuscated phone number
-    date = datetime.datetime.fromtimestamp(float(txt['date'])/1000).strftime('%d/%m/%Y %H:%M:%S')  # date
+    date = datetime.datetime.fromtimestamp(float(txt['date'])/1000).strftime('%m/%d/%Y %H:%M:%S')  # date
     content = cgi.escape(txt['body'])  # text content
     return "<b>Reply:</b> /Reply%s\n<b>From: +%s @ %s</b>\n\n%s" % (reply, sender, date, content)
+    #  return "<b>Reply:</b> /Reply%s\n<b>From:</b> <b><a href='tel:+%s'>+%s</a></b> <b>@ %s</b>\n\n%s" % (reply, sender, sender, date, content) # TODO
 
 
 def checker(*args, **kwargs):  # this is a thread
