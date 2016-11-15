@@ -26,7 +26,7 @@ ALPHABET = string.ascii_lowercase[::-1]
 REPLY_TO = {}
 ERROR_CONN = {}
 FLAG_DEL = {}
-botan_token = sys.argv[5]
+botan_token = sys.argv[3]
 
 
 def main():
@@ -211,9 +211,10 @@ def sendText(bot, update):
                     logger.exception(e)
                 update.message.reply_text('Message sent! YAY')
                 smsbalance = userdb.api.getSMSBalance()
-                if int(smsbalance['remainingSMS']) < 20:
-                    rep_text = 'You have only ' + smsbalance['balanceSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['planName'] + '" plan.'
-                    update.message.reply_text(rep_text)
+                if smsbalance:
+                    if int(smsbalance['remainingSMS']) < 20:
+                        rep_text = 'You have only ' + smsbalance['remainingSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['name'] + '" plan.'
+                        update.message.reply_text(rep_text)
             else:
                 update.message.reply_text('Something went wrong, try again!')
         else:

@@ -11,9 +11,9 @@ class FreedomPop:
     tokenExpireTimestamp = None
     accessToken = None
 
-    _apiClient = sys.argv[3]
-    _apiSecret = sys.argv[4]
-    _apiApp = sys.argv[5]
+    _apiClient = sys.argv[4]
+    _apiSecret = sys.argv[5]
+    _apiApp = sys.argv[6]
     endPoint = "https://api.freedompop.com"
 
     def __init__(self, username, password):
@@ -89,11 +89,17 @@ class FreedomPop:
             return False
 
     def getSMSBalance(self):
+        details = {}
         data = self.getBalance(2)  # number of appversion to start
         if data:
             for dt in data:
                 if dt['type'] == 'VOICE_PLAN':
-                    return dt
+                    details['name'] = str(dt['name'])
+                    details['description'] = str(dt['description'])
+                    details['baseSMS'] = str(dt['baseSMS'])
+                    details['remainingSMS'] = str(dt['balance']['remainingSMS'])
+
+                    return details
             return False
         else:
             usage = self.getUsage()
@@ -108,7 +114,6 @@ class FreedomPop:
 
             base = info['voiceplan']['baseSMS']
             count = 0
-            details = {}
             for t in sms['messages']:
                 if t['from'] == str(info['phoneNumber']):  # count sent sms
                     count += 1
