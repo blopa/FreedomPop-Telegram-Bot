@@ -24,13 +24,18 @@ class FreedomPop:
         url = self.endPoint + "/auth/token"
         headers = dict(Authorization = "Basic %s" % base64.encodestring("%s:%s" % (self._apiClient, self._apiSecret)).replace("\n", ""))
         buffer = requests.post(url, params=params, headers=headers, data="").content
-        print buffer
+        # print buffer
         data = json.loads(buffer)
-        self.accessToken = data["access_token"]
-        self.refreshToken = data["refresh_token"]
-        self.tokenExpireTimestamp = datetime.datetime.now() + datetime.timedelta(seconds = data["expires_in"])
+        try:
+            self.accessToken = data["access_token"]
+            self.refreshToken = data["refresh_token"]
+            self.tokenExpireTimestamp = datetime.datetime.now() + datetime.timedelta(seconds = data["expires_in"])
+            return True
+        except Exception:
+            if params['grant_type'] == 'refresh_token':
+                self.refreshToken = None
+            return False
 
-        return True
 
     def _getAccessToken(self):
         params = dict(username = self.username, password = self.password, grant_type = "password")

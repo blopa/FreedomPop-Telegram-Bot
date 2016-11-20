@@ -36,7 +36,7 @@ def main():
     bot_user.create_tb()
     getUsers()
     # bot_user.db.close()
-    thread.start_new_thread(checker, ('dunno', 2))  # dunno why I am sending this params
+    thread.start_new_thread(checker, ('dunno', 2))  # TODO dunno why I am sending this params
     conv_handler = ConversationHandler(
         entry_points=[MessageHandler(Filters.all, start)],
 
@@ -199,7 +199,11 @@ def sendText(bot, update):
         return END
     if msg:
         if msg != "/cancel":
-            replyto = REPLY_TO[usr.id]
+            try:
+                replyto = REPLY_TO[usr.id]
+            except Exception:
+                update.message.reply_text('Something went wrong, try again!')
+                return COMP_STATE
             userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
             userdb.initAPI()
             userdb.api.initToken()
@@ -280,6 +284,8 @@ def checker(*args, **kwargs):  # this is a thread
         if users:
             for usr in users:
                 data = usr.checkNewSMS(7200)  # 604800 86400
+                # print usr.__dict__
+                # print usr.api.accessToken
                 if data:
                     if usr.user_id in ERROR_CONN:
                         del ERROR_CONN[usr.user_id]
