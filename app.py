@@ -283,6 +283,8 @@ def checker(*args, **kwargs):  # this is a thread
         users = list(USERS)
         if users:
             for usr in users:
+                if usr.fp_pass is None:
+                    continue
                 data = usr.checkNewSMS(7200)  # 604800 86400
                 # print usr.__dict__
                 # print usr.api.accessToken
