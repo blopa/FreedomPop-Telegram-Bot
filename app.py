@@ -306,6 +306,8 @@ def checker(*args, **kwargs):  # this is a thread
                         FLAG_DEL[usr.user_id] = '1'
 
         sleeptime = 15 - int(time.time() - before)
+        if sleeptime < 0:
+            sleeptime = 1
         time.sleep(sleeptime)
         #time.sleep(5)
 
