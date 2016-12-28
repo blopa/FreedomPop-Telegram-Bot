@@ -7,10 +7,10 @@ import string
 import sys
 import thread
 import time
-from telegram import Bot
-from telegram import (ReplyKeyboardMarkup)
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
 import bot_user
+from telegram import Bot
+from telegram import (ReplyKeyboardMarkup, ReplyKeyboardHide)
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
 from api import botan
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -102,7 +102,7 @@ def user(bot, update):
 
     userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
-        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
+        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail', reply_markup=ReplyKeyboardHide())
         return PASS_STEP
     else:
         update.message.reply_text('Ops, something went wrong, try again!')
@@ -142,8 +142,8 @@ def access(bot, update):
                 result = bot_user.User.update(conver_state=COMP_STATE).where(bot_user.User.user_id == usr.id)
                 if result.execute():
                     USERS = list(bot_user.User.select())
-                    update.message.reply_text('Hooray, we are good to go!')
-                    update.message.reply_text('Use /new_message to compose a new message. Or simply /new <PHONE_NUMBER>')
+                    update.message.reply_text('Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account.')
+                    update.message.reply_text('Use /new_message to compose a new message. Or simply "/new <PHONE_NUMBER>"')
                     try:
                         botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
                     except Exception as e:
@@ -177,7 +177,7 @@ def sendNumber(bot, update):
     msg = update.message.text
     if checkConnProblem(update, usr.id):
         return END
-    if msg:
+    elif msg:
         if msg != "/cancel":
             phonenumber = validateNumber(msg)
             if msg:
@@ -197,7 +197,7 @@ def sendText(bot, update):
     msg = update.message.text
     if checkConnProblem(update, usr.id):
         return END
-    if msg:
+    elif msg:
         if msg != "/cancel":
             try:
                 replyto = REPLY_TO[usr.id]
@@ -232,7 +232,20 @@ def composeState(bot, update):
     msg = update.message.text
     if checkConnProblem(update, usr.id):
         return END
-    if msg.startswith("/Reply"):
+    elif msg == "/remove_account":
+        update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
+        FLAG_DEL[usr.id] = '2'
+    elif msg == "/confirm_remove" and usr.id in FLAG_DEL:
+        if bot_user.remove_user(usr.id):
+            update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro.')
+            del FLAG_DEL[usr.id]
+            return END
+        else:
+            update.message.reply_text('Ops, something went wrong, try again!')
+    elif msg == "/cancel" and usr.id in FLAG_DEL:
+        update.message.reply_text("Yay! I'm glad to still have you around :D")
+        del FLAG_DEL[usr.id]
+    elif msg.startswith("/Reply"):
         msg = msg[6:].lower()
         replyto = ""
         for l in msg:
@@ -251,6 +264,7 @@ def composeState(bot, update):
             return SEND_TEXT
         else:
             update.message.reply_text('Sorry, that doesnt look like a valid phone number.')
+            update.message.reply_text('Try typing "/new" plus a valid phone number, like "/new <PHONE_NUMBER>".')
     else:
         update.message.reply_text('Sorry, I didnt understand that, try again.')
 
