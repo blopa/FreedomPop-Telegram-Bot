@@ -9,7 +9,7 @@ import thread
 import time
 import bot_user
 from telegram import Bot
-from telegram import (ReplyKeyboardMarkup)
+from telegram import (ReplyKeyboardMarkup, ReplyKeyboardHide)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
 from api import botan
 
@@ -102,7 +102,7 @@ def user(bot, update):
 
     userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
-        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail')
+        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail', reply_markup=ReplyKeyboardHide())
         return PASS_STEP
     else:
         update.message.reply_text('Ops, something went wrong, try again!')
@@ -235,15 +235,16 @@ def composeState(bot, update):
     elif msg == "/remove_account":
         update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
         FLAG_DEL[usr.id] = '2'
-        return COMP_STATE
-    elif msg == "/confirm_remove" && FLAG_DEL[usr.id] == "2":
+    elif msg == "/confirm_remove" and usr.id in FLAG_DEL:
         if bot_user.remove_user(usr.id):
             update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro.')
+            del FLAG_DEL[usr.id]
             return END
-        else
+        else:
             update.message.reply_text('Ops, something went wrong, try again!')
-    elif msg == "/cancel" && FLAG_DEL[usr.id] == "2":
+    elif msg == "/cancel" and usr.id in FLAG_DEL:
         update.message.reply_text("Yay! I'm glad to still have you around :D")
+        del FLAG_DEL[usr.id]
     elif msg.startswith("/Reply"):
         msg = msg[6:].lower()
         replyto = ""
