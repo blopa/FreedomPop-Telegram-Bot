@@ -1,9 +1,9 @@
+import sys
+import time
+import logging
 from api.freedompop import FreedomPop
 from peewee import *
-import time
-import sys
 from cryptography.fernet import Fernet
-import logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
