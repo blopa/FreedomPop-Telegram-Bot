@@ -27,6 +27,7 @@ REPLY_TO = {}
 ERROR_CONN = {}
 FLAG_DEL = {}
 botan_token = sys.argv[3]
+# TODO use globals for message strings
 
 
 def main():
@@ -97,8 +98,13 @@ def user(bot, update):
 
     result = bot_user.User.select().where(bot_user.User.user_id == usr.id)
     if result.execute():
-        update.message.reply_text('Ops, it seems that you already have an account with us!')
-        return COMP_STATE
+        #update.message.reply_text('Ops, it seems that you already have an account with us!')
+        #return COMP_STATE
+        if bot_user.remove_user(usr.id):  # TODO temp fix, remove this later
+            update.message.reply_text('Hello, Im a bot that allow you to log into your FreedomPop account and start '
+                                      'receiving and sending SMS from Telegram! AWESOME, right?',
+                                      reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+        return USER_STEP
 
     userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
@@ -150,16 +156,17 @@ def access(bot, update):
                         logger.exception(e)
                     return COMP_STATE
                 else:
-                    update.message.reply_text('Something went wrong, send us your password again!')
+                    update.message.reply_text('Something went wrong, send me your password again!')
                     return PASS_STEP
             else:
-                update.message.reply_text('Something went wrong, send us your password again!')
+                update.message.reply_text('Something went wrong, send me your password again!')
                 return PASS_STEP
         except Exception as e:
             logger.exception(e)
     else:
-        update.message.reply_text('Ops, your username or password doesnt seem right, please try again.')
-        return USER_STEP
+        update.message.reply_text("Ops, your username or password doesnt seem right. Let's try again.")
+        update.message.reply_text('Please send me your FreedomPop e-mail.')
+        return PASS_STEP
 
 
 def checkConnProblem(update, user_id):
@@ -299,7 +306,7 @@ def checker(*args, **kwargs):  # this is a thread
             for usr in users:
                 if usr.fp_pass is None:
                     continue
-                data = usr.checkNewSMS(7200)  # 604800 86400
+                data = usr.checkNewSMS(7200)  # 2 hours
                 # print usr.__dict__
                 # print usr.api.accessToken
                 if data:
@@ -316,7 +323,7 @@ def checker(*args, **kwargs):  # this is a thread
                 else:
                     if usr.user_id not in ERROR_CONN:
                         ERROR_CONN[usr.user_id] = str(time.time())
-                    elif time.time() > float(ERROR_CONN[usr.user_id]) + 86400:
+                    elif time.time() > float(ERROR_CONN[usr.user_id]) + 86400:  # 24 hours
                         FLAG_DEL[usr.user_id] = '1'
 
         sleeptime = 15 - int(time.time() - before)
