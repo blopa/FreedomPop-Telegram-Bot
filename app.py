@@ -247,7 +247,7 @@ def composeState(bot, update):
         FLAG_DEL[usr.id] = '2'
     elif msg == "/confirm_remove" and usr.id in FLAG_DEL:
         if bot_user.remove_user(usr.id):
-            update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro.')
+            update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro. Send /start to start again.')
             del FLAG_DEL[usr.id]
             return END
         else:
