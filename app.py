@@ -206,13 +206,14 @@ def sendText(bot, update):
         return END
     elif msg:
         if msg != "/cancel":
+            update.message.reply_text('Trying to send the message...')
             try:
                 replyto = REPLY_TO[usr.id]
+                userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
+                userdb.initAPI()
             except Exception:
                 update.message.reply_text('Something went wrong, try again!')
                 return COMP_STATE
-            userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
-            userdb.initAPI()
             if userdb.api.initToken():
                 if userdb.api.sendSMS(replyto, msg):
                     del REPLY_TO[usr.id]
