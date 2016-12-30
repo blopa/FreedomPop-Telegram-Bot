@@ -103,7 +103,7 @@ def user(bot, update):
         if bot_user.remove_user(usr.id):  # TODO temp fix, remove this later
             update.message.reply_text('Hello, Im a bot that allow you to log into your FreedomPop account and start '
                                       'receiving and sending SMS from Telegram! AWESOME, right?',
-                                      reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+                                      reply_markup=ReplyKeyboardMarkup([['Register account']], one_time_keyboard=True))
         return USER_STEP
 
     userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
@@ -187,12 +187,12 @@ def sendNumber(bot, update):
     elif msg:
         if msg != "/cancel":
             phonenumber = validateNumber(msg)
-            if msg:
+            if phonenumber:
                 REPLY_TO[usr.id] = phonenumber
                 update.message.reply_text('Alright, send the message or /cancel to cancel.')
                 return SEND_TEXT
             else:
-                update.message.reply_text('Sorry, that dosent look like a valid phone number.')
+                update.message.reply_text("Sorry, that doesn't look like a valid phone number. Please try again.")
         else:
             update.message.reply_text('Ok, canceled.')
 
@@ -213,19 +213,21 @@ def sendText(bot, update):
                 return COMP_STATE
             userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
             userdb.initAPI()
-            userdb.api.initToken()
-            if userdb.api.sendSMS(replyto, msg):
-                del REPLY_TO[usr.id]
-                try:
-                    botan.track(botan_token, update.message.from_user.id, {0: 'message sent'}, 'message sent')
-                except Exception as e:
-                    logger.exception(e)
-                update.message.reply_text('Message sent! YAY')
-                smsbalance = userdb.api.getSMSBalance()
-                if smsbalance:
-                    if int(smsbalance['remainingSMS']) < 20:
-                        rep_text = 'You have only ' + smsbalance['remainingSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['name'] + '" plan.'
-                        update.message.reply_text(rep_text)
+            if userdb.api.initToken():
+                if userdb.api.sendSMS(replyto, msg):
+                    del REPLY_TO[usr.id]
+                    try:
+                        botan.track(botan_token, update.message.from_user.id, {0: 'message sent'}, 'message sent')
+                    except Exception as e:
+                        logger.exception(e)
+                    update.message.reply_text('Message sent! YAY')
+                    smsbalance = userdb.api.getSMSBalance()
+                    if smsbalance:
+                        if int(smsbalance['remainingSMS']) < 20:
+                            rep_text = 'You have only ' + smsbalance['remainingSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['name'] + '" plan.'
+                            update.message.reply_text(rep_text)
+                else:
+                    update.message.reply_text('Something went wrong, try again!')
             else:
                 update.message.reply_text('Something went wrong, try again!')
         else:
@@ -265,12 +267,12 @@ def composeState(bot, update):
         return SEND_NUMBER
     elif msg.startswith("/new"):
         phonenumber = validateNumber(msg[4:])
-        if msg:
+        if phonenumber:
             REPLY_TO[usr.id] = phonenumber
             update.message.reply_text('Alright, send the message or /cancel to cancel.')
             return SEND_TEXT
         else:
-            update.message.reply_text('Sorry, that doesnt look like a valid phone number.')
+            update.message.reply_text("Sorry, that doesn't look like a valid phone number.")
             update.message.reply_text('Try typing "/new" plus a valid phone number, like "/new <PHONE_NUMBER>".')
     else:
         update.message.reply_text('Sorry, I didnt understand that, try again.')
@@ -280,7 +282,10 @@ def composeState(bot, update):
 
 def validateNumber(message):
     non_decimal = re.compile(r'[^\d]+')
-    return non_decimal.sub('', message)
+    number = non_decimal.sub('', message)
+    if number == "":
+        return False
+    return number
 
 
 def prepareText(txt):
