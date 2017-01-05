@@ -21,4 +21,4 @@ if users:
         except Exception as e:
             logger.exception(e)
 
-#  run 'python sendMessages.py <BOT_API> <CRYPT_KEY> <BOTAN_API> <FP_API_CLIENT> <FP_API_SECRET> <FP_APP_VERSION> <MESSAGE_TO_SEND>'
+#  run 'python sendMessages.py BOT_API CRYPT_KEY BOTAN_API FP_API_CLIENT FP_API_SECRET FP_APP_VERSION MESSAGE_TO_SEND'
