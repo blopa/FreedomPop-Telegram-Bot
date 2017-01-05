@@ -36,19 +36,19 @@ FP_API_SECRET: FreedomPop API Secret
 FP_APP_VERSION: FreedomPop App Version
 
 # F.A.Q.
-Q: Where do I get FP_API_CLIENT / FP_API_SECRET / FP_APP_VERSION
+**Q: Where do I get FP_API_CLIENT / FP_API_SECRET / FP_APP_VERSION**
 
 A: I got FP_API_CLIENT and FP_API_SECRET here: [FreedomPop Python API](https://github.com/dodysw/fpopclient). For the FP_APP_VERSION you can use "fm.".
 
-Q: Where do I run this bot?
+**Q: Where do I run this bot?**
 
 A: I recomend using http://i-83.net
 
-Q: Can you implement <???> function?
+**Q: Can you implement <???> function?**
 
 A: I can try. Open a issue and I'll see what I can do.
 
-Q: Your bot is awesome. How can I help?
+**Q: Your bot is awesome. How can I help?**
 
 A: Thank you! You can help by codding more features, creating pull requests, or donating using Bitcoin: **1BdL9w4SscX21b2qeiP1ApAFNAYhPj5GgG**
 
