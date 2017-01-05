@@ -10,6 +10,10 @@ A big thanks to [dodysw](https://github.com/dodysw/) who wrote [this](https://gi
 # How To Use
 Open Python Console and run:
 ```python
+pip install -r requirements.txt
+```
+And then:
+```python
 from cryptography.fernet import Fernet
 Fernet.generate_key()
 ```
