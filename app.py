@@ -259,7 +259,7 @@ def composeState(bot, update):
     if checkConnProblem(update, usr.id):
         return END
     elif msg == "/reset":
-        if usr.id == "123595869":
+        if usr.id == 123595869:
             update.message.reply_text('Okay, resetting...')
             workaround()
     elif msg == "/remove_account":
