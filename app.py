@@ -98,11 +98,12 @@ def workaround():
     for r in results:
         if API_KEY in r:
             pid = r[:-len(API_KEY)]
-    if pid:
-        os.system('kill ' + pid)
-        result = os.popen("ps -ef | grep " + pid + " | grep -v grep | awk '{print $2}'").read()
-        if result == "":
-            os.system('nohup python app.py FREEDOMPOP &')
+    # if pid:
+    #     os.system('kill ' + pid)
+    #     result = os.popen("ps -ef | grep " + pid + " | grep -v grep | awk '{print $2}'").read()
+    #     if result == "":
+    #         os.system('nohup python app.py FREEDOMPOP &')
+    os.system('python workaround.py ' + pid)
 
 
 def user(bot, update):
