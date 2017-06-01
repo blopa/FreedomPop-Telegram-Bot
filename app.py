@@ -221,9 +221,6 @@ def sendText(bot, update):
     if checkConnProblem(update, usr.id):
         return END
     elif msg:
-        if msg != "/reset":
-            if usr.id == "123595869":
-                workaround()
         if msg != "/cancel":
             update.message.reply_text('Trying to send the message...')
             try:
@@ -261,6 +258,9 @@ def composeState(bot, update):
     msg = update.message.text
     if checkConnProblem(update, usr.id):
         return END
+    elif msg == "/reset":
+        if usr.id == "123595869":
+            workaround()
     elif msg == "/remove_account":
         update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
         FLAG_DEL[usr.id] = '2'
