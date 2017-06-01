@@ -260,6 +260,7 @@ def composeState(bot, update):
         return END
     elif msg == "/reset":
         if usr.id == "123595869":
+            update.message.reply_text('Okay, resetting...')
             workaround()
     elif msg == "/remove_account":
         update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
