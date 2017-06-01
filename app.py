@@ -2,6 +2,7 @@ import cgi
 import datetime
 import logging
 import random
+import os
 import re
 import string
 import sys
@@ -88,6 +89,20 @@ def start(bot, update):
 
 def cancel(bot, update):
     return False
+
+
+def workaround():
+    result = os.popen("ps aux | grep 'python app.py' | awk '{print $2 $13}'").read()
+    results = result.split('\n')
+    pid = ""
+    for r in results:
+        if API_KEY in r:
+            pid = r[:-len(API_KEY)]
+    if pid:
+        os.system('kill ' + pid)
+        result = os.popen("ps -ef | grep " + pid + " | grep -v grep | awk '{print $2}'").read()
+        if result == "":
+            os.system('nohup python app.py FREEDOMPOP &')
 
 
 def user(bot, update):
@@ -205,6 +220,9 @@ def sendText(bot, update):
     if checkConnProblem(update, usr.id):
         return END
     elif msg:
+        if msg != "/reset":
+            if usr.id == "123595869":
+                workaround()
         if msg != "/cancel":
             update.message.reply_text('Trying to send the message...')
             try:
