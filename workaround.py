@@ -8,7 +8,7 @@ def main():
         os.system('kill ' + pid)
         result = os.popen("ps -ef | grep " + pid + " | grep -v grep | awk '{print $2}'").read()
         if result == "":
-            os.system('nohup python app.py FREEDOMPOP &')
+            os.system('./workaround.sh')
 
 
 if __name__ == '__main__':
