@@ -262,6 +262,8 @@ def composeState(bot, update):
         if usr.id == 123595869:
             update.message.reply_text('Okay, resetting...')
             workaround()
+        else:
+            update.message.reply_text('Sorry, I didnt understand that, try again.')
     elif msg == "/remove_account":
         update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
         FLAG_DEL[usr.id] = '2'
@@ -325,8 +327,11 @@ def prepareText(txt):
 def checker(*args, **kwargs):  # this is a thread
     time.sleep(5)
     bot = Bot(API_KEY)
+    now = time.time()
     while True:
         before = time.time()
+        if (before - now) > 3600: # 1 hour
+            workaround()
         users = list(USERS)
         if users:
             for usr in users:
