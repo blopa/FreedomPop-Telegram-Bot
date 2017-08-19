@@ -1,5 +1,4 @@
 import sys
-import time
 import logging
 from api.freedompop import FreedomPop
 from peewee import *
@@ -8,7 +7,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 CRYPTO = Fernet(sys.argv[2])
-db = SqliteDatabase('mydb.db')
+db = SqliteDatabase('userdb.db')
 
 
 class User(Model):
@@ -16,32 +15,17 @@ class User(Model):
     user_id = CharField(unique=True)
     fp_user = CharField(null=True)
     fp_pass = CharField(null=True)
-    conver_state = CharField()
+    fp_api_token = CharField(null=True)
+    fp_api_token_expiration = DateTimeField(null=True)
+    created_at = DateTimeField(null=False)
+    updated_at = DateTimeField(null=False)
+    conversation_state = CharField()
 
     class Meta:
         database = db
 
     def __init__(self, *args, **kwargs):
-        self.api = None
         super(User, self).__init__(*args, **kwargs)
-
-    def timestamp2Str(self, timestamp):
-        return str(timestamp).replace('.', '').ljust(13, '0')
-
-    def initAPI(self):
-        if not self.api:
-            decrypt_pass = decrypt(str(self.fp_pass))
-            self.api = FreedomPop(self.fp_user, decrypt_pass)
-
-    def checkNewSMS(self, range):
-        try:
-            self.initAPI()
-            currTime = float(time.time())
-            pastTime = currTime - range
-            return self.api.getSMS(self.timestamp2Str(pastTime), self.timestamp2Str(currTime), False, False, False)
-        except Exception as e:
-            logger.exception(e)
-            return False
 
 
 def create_tb():

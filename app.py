@@ -1,375 +1,146 @@
-import cgi
-import datetime
-import logging
-import random
-import os
-import re
-import string
-import sys
-import thread
-import time
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Simple Bot to reply to Telegram messages
+# This program is dedicated to the public domain under the CC0 license.
+"""
+This Bot uses the Updater class to handle the bot.
+First, a few handler functions are defined. Then, those functions are passed to
+the Dispatcher and registered at their respective places.
+Then, the bot is started and runs until we press Ctrl-C on the command line.
+Usage:
+Basic Echobot example, repeats messages.
+Press Ctrl-C on the command line or send a signal to the process to stop the
+bot.
+"""
+
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram import ForceReply
 import bot_user
-from telegram import Bot
-from telegram import (ReplyKeyboardMarkup, ReplyKeyboardHide)
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
-from api import botan
+import logging
+import time
+import re
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+# Enable logging
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+
 logger = logging.getLogger(__name__)
-
-
-END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
-API_KEY = sys.argv[1]
-LOGIN = []
-USERS = []  #bot_user.User
+USERS = []
 EMAIL = re.compile("[^@]+@[^@]+\.[^@]+")
-ALPHABET = string.ascii_lowercase[::-1]
-REPLY_TO = {}
-ERROR_CONN = {}
-FLAG_DEL = {}
-botan_token = sys.argv[3]
-# TODO use globals for message strings
+END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
 
 
-def main():
-    updater = Updater(API_KEY)
-    dispatcher = updater.dispatcher
-    bot_user.db.connect()
-    bot_user.create_tb()
-    getUsers()
-    # bot_user.db.close()
-    thread.start_new_thread(checker, ('dunno', 2))  # TODO dunno why I am sending this params
-    conv_handler = ConversationHandler(
-        entry_points=[MessageHandler(Filters.all, start)],
-
-        states={
-            USER_STEP: [MessageHandler(Filters.text, user)],
-
-            PASS_STEP: [MessageHandler(Filters.text, passw)],
-
-            ACCESS: [MessageHandler(Filters.text, access)],
-
-            COMP_STATE: [MessageHandler(Filters.command, composeState)],
-
-            SEND_TEXT: [MessageHandler(Filters.all, sendText)],
-
-            SEND_NUMBER: [MessageHandler(Filters.all, sendNumber)],
-
-            END: [MessageHandler(Filters.text, end)]
-        },
-
-        fallbacks=[CommandHandler('cancel', cancel)]
-    )
-    dispatcher.add_handler(conv_handler)
-    updater.start_polling()
-
-
-def end(bot, update):
-    return ConversationHandler.END
-
-
+# Define a few command handlers. These usually take the two arguments bot and
+# update. Error handlers also receive the raised TelegramError object in error.
 def start(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    if msg:
-        result = bot_user.User.select().where(bot_user.User.user_id == usr.id).execute()
-        if result:
-            userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
-            funcs = {1: user, 2: passw, 3: access, 4: composeState, 5: sendText}
-            return funcs[int(userdb.conver_state)](bot, update)
-        else: #  elif msg.startswith('/start'):
-            reply_keyboard = [['Register account']]
-            update.message.reply_text('Hello, Im a bot that allow you to log into your FreedomPop account and start '
-                                      'receiving and sending SMS from Telegram! AWESOME, right?',
-                                      reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
-            return USER_STEP
-
-    return END
-
-
-def cancel(bot, update):
-    return False
-
-
-def workaround():
-    result = os.popen("ps aux | grep 'python app.py' | awk '{print $2 $13}'").read()
-    results = result.split('\n')
-    pid = ""
-    for r in results:
-        if API_KEY in r:
-            pid = r[:-len(API_KEY)]
-    # if pid:
-    #     os.system('kill ' + pid)
-    #     result = os.popen("ps -ef | grep " + pid + " | grep -v grep | awk '{print $2}'").read()
-    #     if result == "":
-    #         os.system('nohup python app.py FREEDOMPOP &')
-    os.system('python workaround.py ' + pid)
-
-
-def user(bot, update):
-    usr = update.message.from_user
-    if update.message.text != "Register account":
-        update.message.reply_text('Sorry, I didnt understand that, try typing "Register account".')
-        return END
-
-    result = bot_user.User.select().where(bot_user.User.user_id == usr.id)
-    if result.execute():
-        #update.message.reply_text('Ops, it seems that you already have an account with us!')
-        #return COMP_STATE
-        if bot_user.remove_user(usr.id):  # TODO temp fix, remove this later
-            update.message.reply_text('Hello, Im a bot that allow you to log into your FreedomPop account and start '
-                                      'receiving and sending SMS from Telegram! AWESOME, right?',
-                                      reply_markup=ReplyKeyboardMarkup([['Register account']], one_time_keyboard=True))
-        return USER_STEP
-
-    userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
-    if userdb.save():
-        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail', reply_markup=ReplyKeyboardHide())
-        return PASS_STEP
+    result = bot_user.User.select().where(bot_user.User.user_id == usr.id).execute()
+    if result:
+        userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
+        update.message.reply_text("Hello there. What do you want to do?")
     else:
-        update.message.reply_text('Ops, something went wrong, try again!')
-        return END
-
-
-def passw(bot, update):
-    usr = update.message.from_user
-    if not EMAIL.match(update.message.text):
-        update.message.reply_text('That dosent seem like a valid email, try again!')
-        return PASS_STEP
-
-    result = bot_user.User.update(fp_user=update.message.text, conver_state=ACCESS).where(bot_user.User.user_id == usr.id)
-    if result.execute():
-        update.message.reply_text('Great! Now send me the password.') # TODO add message to delete password
-        return ACCESS
-    else:
-        update.message.reply_text('Ops, something went wrong, try again!')
-        return END
-
-
-def access(bot, update):
-    global USERS
-    usr = update.message.from_user
-    encrypt_pass = bot_user.encrypt(update.message.text)
-    result = bot_user.User.update(fp_pass=encrypt_pass).where(bot_user.User.user_id == usr.id)
-    if not result.execute():
-        update.message.reply_text('Ops, something went wrong, try again!')
-        return END
-
-    update.message.reply_text('Connecting...')
-    userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
-    userdb.initAPI()
-    if userdb.api.initToken():
-        try:
-            if userdb.save():
-                result = bot_user.User.update(conver_state=COMP_STATE).where(bot_user.User.user_id == usr.id)
-                if result.execute():
-                    USERS = list(bot_user.User.select())
-                    update.message.reply_text('Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account.')
-                    update.message.reply_text('Use /new_message to compose a new message. Or simply "/new <PHONE_NUMBER>"')
-                    try:
-                        botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
-                    except Exception as e:
-                        logger.exception(e)
-                    return COMP_STATE
-                else:
-                    update.message.reply_text('Something went wrong, send me your password again!')
-                    return PASS_STEP
-            else:
-                update.message.reply_text('Something went wrong, send me your password again!')
-                return PASS_STEP
-        except Exception as e:
-            logger.exception(e)
-    else:
-        update.message.reply_text("Ops, your username or password doesnt seem right. Let's try again.")
-        update.message.reply_text('Please send me your FreedomPop e-mail.')
-        return PASS_STEP
-
-
-def checkConnProblem(update, user_id):
-    if user_id in FLAG_DEL:
-        if FLAG_DEL[user_id] == '1':
-            if bot_user.remove_user(user_id):
-                update.message.reply_text('Something is wrong with your credentials, please register again.')
-                del FLAG_DEL[user_id]
-                return True
-    return False
-
-
-def sendNumber(bot, update):
-    usr = update.message.from_user
-    msg = update.message.text
-    if checkConnProblem(update, usr.id):
-        return END
-    elif msg:
-        if msg != "/cancel":
-            phonenumber = validateNumber(msg)
-            if phonenumber:
-                REPLY_TO[usr.id] = phonenumber
-                update.message.reply_text('Alright, send the message or /cancel to cancel.')
-                return SEND_TEXT
-            else:
-                update.message.reply_text("Sorry, that doesn't look like a valid phone number. Please try again.")
-        else:
-            update.message.reply_text('Ok, canceled.')
-
-    return COMP_STATE
-
-
-def sendText(bot, update):
-    usr = update.message.from_user
-    msg = update.message.text
-    if checkConnProblem(update, usr.id):
-        return END
-    elif msg:
-        if msg != "/cancel":
-            update.message.reply_text('Trying to send the message...')
-            try:
-                replyto = REPLY_TO[usr.id]
-                userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
-                userdb.initAPI()
-            except Exception:
-                update.message.reply_text('Something went wrong, try again!')
-                return COMP_STATE
-            if userdb.api.initToken():
-                if userdb.api.sendSMS(replyto, msg):
-                    del REPLY_TO[usr.id]
-                    try:
-                        botan.track(botan_token, update.message.from_user.id, {0: 'message sent'}, 'message sent')
-                    except Exception as e:
-                        logger.exception(e)
-                    update.message.reply_text('Message sent! YAY')
-                    smsbalance = userdb.api.getSMSBalance()
-                    if smsbalance:
-                        if int(smsbalance['remainingSMS']) < 20:
-                            rep_text = 'You have only ' + smsbalance['remainingSMS'] + ' SMS left out of ' + smsbalance['baseSMS'] + ' from your "' + smsbalance['name'] + '" plan.'
-                            update.message.reply_text(rep_text)
-                else:
-                    update.message.reply_text('Something went wrong, try again!')
-            else:
-                update.message.reply_text('Something went wrong, try again!')
-        else:
-            update.message.reply_text('Ok, message canceled.')
-
-    return COMP_STATE
-
-
-def composeState(bot, update):
-    usr = update.message.from_user
-    msg = update.message.text
-    if checkConnProblem(update, usr.id):
-        return END
-    elif msg == "/reset":
-        if usr.id == 123595869:
-            update.message.reply_text('Okay, resetting...')
-            workaround()
-        else:
-            update.message.reply_text('Sorry, I didnt understand that, try again.')
-    elif msg == "/remove_account":
-        update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
-        FLAG_DEL[usr.id] = '2'
-    elif msg == "/confirm_remove" and usr.id in FLAG_DEL:
-        if bot_user.remove_user(usr.id):
-            update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro. Send /start to start again.')
-            del FLAG_DEL[usr.id]
-            return END
-        else:
-            update.message.reply_text('Ops, something went wrong, try again!')
-    elif msg == "/cancel" and usr.id in FLAG_DEL:
-        update.message.reply_text("Yay! I'm glad to still have you around :D")
-        del FLAG_DEL[usr.id]
-    elif msg.startswith("/Reply"):
-        msg = msg[6:].lower()
-        replyto = ""
-        for l in msg:
-            replyto += str(ALPHABET.index(l))
-        REPLY_TO[usr.id] = replyto
-        update.message.reply_text('Alright, send the message or /cancel to cancel.')
-        return SEND_TEXT
-    elif msg.startswith("/new_message"):
-        update.message.reply_text('Alright, send me the phone number w/ country code or /cancel to cancel.')
-        return SEND_NUMBER
-    elif msg.startswith("/new"):
-        phonenumber = validateNumber(msg[4:])
-        if phonenumber:
-            REPLY_TO[usr.id] = phonenumber
-            update.message.reply_text('Alright, send the message or /cancel to cancel.')
-            return SEND_TEXT
-        else:
-            update.message.reply_text("Sorry, that doesn't look like a valid phone number.")
-            update.message.reply_text('Try typing "/new" plus a valid phone number, like "/new <PHONE_NUMBER>".')
-    else:
-        update.message.reply_text('Sorry, I didnt understand that, try again.')
-
-    return COMP_STATE
-
-
-def validateNumber(message):
-    non_decimal = re.compile(r'[^\d]+')
-    number = non_decimal.sub('', message)
-    if number == "":
-        return False
-    return number
-
-
-def prepareText(txt):
-    reply = ""
-    sender = txt['from']  # phone number
-    for n in sender:
-        letter = ALPHABET[int(n)]
-        reply += random.choice([letter.upper(), letter])
-    #  reply = reply.encode('rot13')  # obfuscated phone number
-    date = datetime.datetime.fromtimestamp(float(txt['date'])/1000).strftime('%m/%d/%Y %H:%M:%S')  # date
-    content = cgi.escape(txt['body'])  # text content
-    return "<b>Reply:</b> /Reply%s\n<b>From: +%s @ %s</b>\n\n%s" % (reply, sender, date, content)
-    #  return "<b>Reply:</b> /Reply%s\n<b>From:</b> <b><a href='tel:+%s'>+%s</a></b> <b>@ %s</b>\n\n%s" % (reply, sender, sender, date, content) # TODO
-
-
-def checker(*args, **kwargs):  # this is a thread
-    time.sleep(5)
-    bot = Bot(API_KEY)
-    now = time.time()
-    while True:
-        before = time.time()
-        if (before - now) > 3600: # 1 hour
-            workaround()
-        users = list(USERS)
-        if users:
-            for usr in users:
-                if usr.fp_pass is None:
-                    continue
-                data = usr.checkNewSMS(7200)  # 2 hours
-                # print usr.__dict__
-                # print usr.api.accessToken
-                if data:
-                    if usr.user_id in ERROR_CONN:
-                        del ERROR_CONN[usr.user_id]
-                    for txt in data['messages']:
-                        if usr.api.setAsRead(txt['id']):
-                            text = prepareText(txt)
-                            bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='HTML')
-                            try:
-                                botan.track(botan_token, usr.user_id, {0: 'message received'}, 'message received')
-                            except Exception as e:
-                                logger.exception(e)
-                else:
-                    if usr.user_id not in ERROR_CONN:
-                        ERROR_CONN[usr.user_id] = str(time.time())
-                    elif time.time() > float(ERROR_CONN[usr.user_id]) + 86400:  # 24 hours
-                        FLAG_DEL[usr.user_id] = '1'
-
-        sleeptime = 15 - int(time.time() - before)
-        if sleeptime < 0:
-            sleeptime = 1
-        time.sleep(sleeptime)
-        #time.sleep(5)
+        update.message.reply_text("Hello, I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?")
+        userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conversation_state=PASS_STEP, created_at=time.time(), updated_at=time.time())
+        if userdb.save():
+            update.message.reply_text("Please send me your FreedomPop e-mail.")
 
 
 def getUsers():
     global USERS
-    try:
-        USERS = list(bot_user.User.select())
-    except Exception as e:
-        logger.exception(e)
+try:
+    USERS = list(bot_user.User.select())
+except Exception as e:
+    logger.exception(e)
+
+
+def help(bot, update):
+    update.message.reply_text('Help!')
+
+
+def text(bot, update):
+    usr = update.message.from_user
+    msg = update.message.text
+    result = bot_user.User.select().where(bot_user.User.user_id == usr.id).execute()
+    if result:
+        userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
+        if userdb.fp_user == None:
+            if not EMAIL.match(msg):
+                update.message.reply_text("that dosent look like a valid email")
+            else:
+                result = bot_user.User.update(fp_user=update.message.text, conversation_state=ACCESS).where(bot_user.User.user_id == usr.id)
+                if result.execute():
+                    update.message.reply_text('Great! Now send me the password.')
+
+    if update.message.reply_to_message != None:
+        return
+    update.message.reply_text(update.message.text)
+    bot.send_message(update.message.from_user.id, 'text', reply_markup=ForceReply(True, False))
+
+
+def error(bot, update, error):
+    logger.warn('Update "%s" caused error "%s"' % (update, error))
+
+
+def new_message(bot, update, args):
+    if args.__len__() > 1:
+        update.message.reply_text("that dosent look like a phone number")
+    update.message.reply_text(update.message.text)
+
+
+def cancel(bot, update):
+    return
+
+
+def remove_account(bot, update):
+    return
+
+
+def confirm_remove(bot, update):
+    return
+
+
+def other_commands(bot, update):
+    return
+
+
+def main():
+    # Create the EventHandler and pass it your bot's token.
+    updater = Updater("257322944:AAEBk4rQKxskBrmNqvwScsmDmIfvxj2wcAs")
+
+    # Get the dispatcher to register handlers
+    dp = updater.dispatcher
+
+    # on different commands - answer in Telegram
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CommandHandler("help", help))
+    dp.add_handler(CommandHandler("cancel", cancel))
+    dp.add_handler(CommandHandler("remove_account", remove_account))
+    dp.add_handler(CommandHandler("confirm_remove", confirm_remove))
+    dp.add_handler(CommandHandler("new_message", new_message))
+    dp.add_handler(CommandHandler("new", new_message, pass_args=True))
+    dp.add_handler(MessageHandler(Filters.command, other_commands))
+
+    # on noncommand i.e message - echo the message on Telegram
+    dp.add_handler(MessageHandler(Filters.text, text))
+
+    # log all errors
+    dp.add_error_handler(error)
+
+    # load users
+    bot_user.db.connect()
+    bot_user.create_tb()
+    getUsers()
+    # start sms thread
+
+    # Start the Bot polling
+    updater.start_polling()
+
+    # Run the bot until you press Ctrl-C or the process receives SIGINT,
+    # SIGTERM or SIGABRT. This should be used most of the time, since
+    # start_polling() is non-blocking and will stop the bot gracefully.
+    updater.idle()
 
 
 if __name__ == '__main__':
