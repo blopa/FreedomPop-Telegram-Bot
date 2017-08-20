@@ -60,12 +60,12 @@ def start(bot, update):
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:
         #userdb = User.User.get(User.User.user_id == usr.id)
-        update.message.reply_text(DEFAULT_MESSAGE)
+        send_bot_reply(update, DEFAULT_MESSAGE)
     else:
-        update.message.reply_text("Hello, " + ABOUT_MESSAGE)
+        send_bot_reply(update, "Hello, " + ABOUT_MESSAGE)
         userdb = User.User(name=usr.first_name, user_id=usr.id, conversation_state=PASS_STEP, created_at=time.time(), updated_at=time.time())
         if userdb.save():
-            update.message.reply_text(EMAIL_MESSAGE)
+            send_bot_reply(update, EMAIL_MESSAGE)
 
 
 def text(bot, update):  # handle all messages that are not commands
@@ -77,30 +77,30 @@ def text(bot, update):  # handle all messages that are not commands
         # REGISTRATION BLOCK ---------------------------------------------------------
         if userdb.fp_user is None:  # check if user has a registered email
             if not EMAIL.match(msg):
-                update.message.reply_text(INVALID_EMAIL_MESSAGE)
+                send_bot_reply(update, INVALID_EMAIL_MESSAGE)
             else:
                 userdb.fp_user = msg
                 userdb.conversation_state = ACCESS
                 if userdb.save():
-                    update.message.reply_text(PASSWORD_MESSAGE)
+                    send_bot_reply(update, PASSWORD_MESSAGE)
         elif userdb.fp_pass is None:  # check if user has a registered password
             encrypt_pass = User.encrypt(msg)
             userdb.fp_pass = encrypt_pass
-            update.message.reply_text(CONNECTING_MESSAGE)
+            send_bot_reply(update, CONNECTING_MESSAGE)
             fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
             if fpapi.initialize_token():
                 userdb.fp_api_token = fpapi.access_token  # get api token
                 userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
                 userdb.fp_api_token_expiration = fpapi.token_expire_timestamp  # get api token expiration date
                 if userdb.save():
-                    update.message.reply_text(CONNECTED_MESSAGE)
+                    send_bot_reply(update, CONNECTED_MESSAGE)
                     global USERS
                     USERS = list(User.User.select())
             else:
                 userdb.fp_user = None
                 userdb.fp_pass = None
                 if userdb.save():
-                    update.message.reply_text(UNABLE_TO_CONNECT)
+                    send_bot_reply(update, UNABLE_TO_CONNECT)
         # SENDING MESSAGES BLOCK ---------------------------------------------------------
         else:  # has user and password registered
             if update.message.reply_to_message is not None:  # replying to a message
@@ -111,21 +111,21 @@ def text(bot, update):  # handle all messages that are not commands
                     if userdb.save():
                         send_text_message(update, userdb, msg)
                 else:
-                    update.message.reply_text(DEFAULT_MESSAGE)
+                    send_bot_reply(update, DEFAULT_MESSAGE)
             elif userdb.conversation_state == SEND_NUMBER:  # just sent the phone number
                 phone_number = validate_phone_number(msg)
                 if phone_number:
                     userdb.conversation_state = SEND_TEXT
                     userdb.send_text_phone = phone_number
                     if userdb.save():
-                        update.message.reply_text(SEND_MESSAGE_MESSAGE)
+                        send_bot_reply(update, SEND_MESSAGE_MESSAGE)
                 else:
-                    update.message.reply_text(INVALID_PHONE_MESSAGE)
-                    update.message.reply_text(PHONE_TIP_MESSAGE)
+                    send_bot_reply(update, INVALID_PHONE_MESSAGE)
+                    send_bot_reply(update, PHONE_TIP_MESSAGE)
             elif userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
                 send_text_message(update, userdb, msg)
             else:
-                update.message.reply_text(DEFAULT_MESSAGE)
+                send_bot_reply(update, DEFAULT_MESSAGE)
 
 
 def get_phone_number(text):
@@ -142,9 +142,9 @@ def get_phone_number(text):
 
 def send_text_message(update, userdb, message):
     fpapi = initialize_freedompop(userdb)
-    update.message.reply_text(SENDING_MESSAGE_MESSAGE)
+    send_bot_reply(update, SENDING_MESSAGE_MESSAGE)
     if fpapi.send_text_message(userdb.send_text_phone, message):
-        update.message.reply_text(MESSAGE_SENT_MESSAGE)
+        send_bot_reply(update, MESSAGE_SENT_MESSAGE)
         userdb.send_text_phone = None
         userdb.conversation_state = COMP_STATE
         userdb.save()
@@ -174,8 +174,8 @@ def error(bot, update, error):
 def new_message(bot, update, args):
     usr = update.message.from_user
     if args.__len__() > 1:  # sent command + more than one argument
-        update.message.reply_text(INVALID_PHONE_MESSAGE)
-        update.message.reply_text(PHONE_TIP_MESSAGE)
+        send_bot_reply(update, INVALID_PHONE_MESSAGE)
+        send_bot_reply(update, PHONE_TIP_MESSAGE)
         return
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
@@ -183,25 +183,25 @@ def new_message(bot, update, args):
         if args == []:  # if no argument
             userdb.conversation_state = SEND_NUMBER
             if userdb.save():
-                update.message.reply_text(SEND_NUMBER_MESSAGE)
+                send_bot_reply(update, SEND_NUMBER_MESSAGE)
         else:  # if it has an argument, it should be the phone number
             phone_number = validate_phone_number(args[0])
             if phone_number:
                 userdb.send_text_phone = phone_number
                 userdb.conversation_state = SEND_TEXT
                 if userdb.save():
-                    update.message.reply_text(SEND_MESSAGE_MESSAGE)
+                    send_bot_reply(update, SEND_MESSAGE_MESSAGE)
             else:
-                update.message.reply_text(INVALID_PHONE_MESSAGE)
-                update.message.reply_text(PHONE_TIP_MESSAGE)
+                send_bot_reply(update, INVALID_PHONE_MESSAGE)
+                send_bot_reply(update, PHONE_TIP_MESSAGE)
 
 
 def help(bot, update):
-    update.message.reply_text('Help!')
+    send_bot_reply(update, 'Help!')
 
 
 def about(bot, update):
-    update.message.reply_text(ABOUT_MESSAGE)
+    send_bot_reply(update, ABOUT_MESSAGE)
 
 
 def cancel(bot, update):
@@ -213,7 +213,7 @@ def cancel(bot, update):
             userdb.conversation_state = ACCESS
         userdb.send_text_phone = None
         userdb.save()
-    update.message.reply_text(CANCELED_MESSAGE)
+    send_bot_reply(update, CANCELED_MESSAGE)
 
 
 def remove_account(bot, update):
@@ -223,9 +223,9 @@ def remove_account(bot, update):
         userdb = User.User.get(User.User.user_id == usr.id)
         userdb.conversation_state = REMOVE_ACCOUNT
         if userdb.save():
-            update.message.reply_text(REMOVE_ACCOUNT_MESSAGE)
+            send_bot_reply(update, REMOVE_ACCOUNT_MESSAGE)
     else:
-        update.message.reply_text(NOT_LOGGED_MESSAGE)
+        send_bot_reply(update, NOT_LOGGED_MESSAGE)
 
 
 def confirm_remove(bot, update):
@@ -235,11 +235,11 @@ def confirm_remove(bot, update):
         userdb = User.User.get(User.User.user_id == usr.id)
         if userdb.conversation_state == REMOVE_ACCOUNT:
             if User.remove_user(userdb.user_id):
-                update.message.reply_text(ACCOUNT_REMOVED_MESSAGE)
+                send_bot_reply(update, ACCOUNT_REMOVED_MESSAGE)
             else:
-                update.message.reply_text(UNKNOWN_ERROR_MESSAGE)
+                send_bot_reply(update, UNKNOWN_ERROR_MESSAGE)
     else:
-        update.message.reply_text(NOT_LOGGED_MESSAGE)
+        send_bot_reply(update, NOT_LOGGED_MESSAGE)
 
 
 def plan_usage(bot, update):
@@ -262,9 +262,9 @@ def plan_usage(bot, update):
                 if dt == "remainingData" or dt == "dataFriendBonusEarned" or dt == "baseData":
                     content = str(int(balance[dt]) / in_mb) + " MB"
                 text += label + ": " + content + "\n"
-            update.message.reply_text(text)
+            send_bot_reply(update, text)
     else:
-        update.message.reply_text(NOT_LOGGED_MESSAGE)
+        send_bot_reply(update, NOT_LOGGED_MESSAGE)
 
 
 def other_commands(bot, update):
@@ -278,11 +278,18 @@ def other_commands(bot, update):
             userdb.conversation_state = SEND_TEXT
             userdb.send_text_phone = phone_number
             if userdb.save():
-                update.message.reply_text(SEND_MESSAGE_MESSAGE)
+                send_bot_reply(update, SEND_MESSAGE_MESSAGE)
         else:
-            update.message.reply_text(ERROR_MESSAGE)
+            send_bot_reply(update, ERROR_MESSAGE)
     else:
-        update.message.reply_text(ERROR_MESSAGE)
+        send_bot_reply(update, ERROR_MESSAGE)
+
+
+def send_bot_reply(update, message):
+    try:
+        update.message.reply_text(message)
+    except Exception as e:
+        logger.exception(e)
 
 
 def main():
@@ -348,12 +355,18 @@ def checker(*args, **kwargs):  # this is a thread
                     for txt in data['messages']:
                         if fpapi.mark_as_read(txt['id']):
                             text = prepare_text(txt)
-                            bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
+                            try:
+                                bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
+                            except Exception as e:
+                                logger.exception(e)
                 else:
                     errors = int(userdb.fp_api_connection_errors)
                     if errors > 50:
                         if User.remove_user(userdb.user_id):
-                            bot.sendMessage(chat_id=userdb.user_id, text=WRONG_CREDENTIALS_MESSAGE)
+                            try:
+                                bot.sendMessage(chat_id=userdb.user_id, text=WRONG_CREDENTIALS_MESSAGE)
+                            except Exception as e:
+                                logger.exception(e)
                     else:
                         userdb.fp_api_connection_errors = errors + 1
 
