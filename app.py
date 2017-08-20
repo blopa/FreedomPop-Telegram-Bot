@@ -24,6 +24,28 @@ USERS = []
 EMAIL = re.compile("[^@]+@[^@]+\.[^@]+")
 END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER, REMOVE_ACCOUNT = range(8)
 ALPHABET = string.ascii_lowercase[::-1]
+#  app messages
+DEFAULT_MESSAGE = "Hello there. What can I do for you? You could try /new_message or /plan_usage"
+ABOUT_MESSAGE = "I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?"
+EMAIL_MESSAGE = "Please send me your FreedomPop e-mail."
+PASSWORD_MESSAGE = "Great! Now send me the password."
+INVALID_EMAIL_MESSAGE = "Hmn.. that dosen't look like a valid email. Could you please try again?"
+INVALID_PHONE_MESSAGE = "Hmn.. that dosen't look like a valid phone number. Could you please try again?"
+PHONE_TIP_MESSAGE = 'Try typing "/new" plus a valid phone number, like "/new <PHONE_NUMBER>".'
+UNABLE_TO_CONNECT = "I was unable to connect to your FreedomPop account :( please send us your email and password again."
+WRONG_CREDENTIALS_MESSAGE = "Something is wrong with your credentials, please register again using the /start command."
+CONNECTING_MESSAGE = "Connecting..."
+CONNECTED_MESSAGE = "Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account."
+SEND_NUMBER_MESSAGE = "Alright, send me the phone number w/ country code or /cancel to cancel."
+SEND_MESSAGE_MESSAGE = "Alright, send the message or /cancel to cancel."
+SENDING_MESSAGE_MESSAGE = "Trying to send the message..."
+MESSAGE_SENT_MESSAGE = "Message sent!! YAY"
+REMOVE_ACCOUNT_MESSAGE = "Really? :( send /confirm_remove to confirm or /cancel to cancel."
+NOT_LOGGED_MESSAGE = "You are not logged."
+ACCOUNT_REMOVED_MESSAGE = "Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro. Send /start to start again."
+CANCELED_MESSAGE = "Ok, canceled."
+ERROR_MESSAGE = "Sorry I didn't get that!"
+UNKNOWN_ERROR_MESSAGE = "Oops! Something went wrong. Please try again later."
 
 
 # Define a few command handlers. These usually take the two arguments bot and
@@ -33,13 +55,13 @@ def start(bot, update):
     msg = update.message.text
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:
-        userdb = User.User.get(User.User.user_id == usr.id)
-        update.message.reply_text("Hello there. What do you want to do?")
+        #userdb = User.User.get(User.User.user_id == usr.id)
+        update.message.reply_text(DEFAULT_MESSAGE)
     else:
-        update.message.reply_text("Hello, I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?")
+        update.message.reply_text("Hello, " + ABOUT_MESSAGE)
         userdb = User.User(name=usr.first_name, user_id=usr.id, conversation_state=PASS_STEP, created_at=time.time(), updated_at=time.time())
         if userdb.save():
-            update.message.reply_text("Please send me your FreedomPop e-mail.")
+            update.message.reply_text(EMAIL_MESSAGE)
 
 
 def text(bot, update):  # handle all messages that are not commands
@@ -51,67 +73,74 @@ def text(bot, update):  # handle all messages that are not commands
         # REGISTRATION BLOCK ---------------------------------------------------------
         if userdb.fp_user is None:  # check if user has a registered email
             if not EMAIL.match(msg):
-                update.message.reply_text("that dosent look like a valid email")
+                update.message.reply_text(INVALID_EMAIL_MESSAGE)
             else:
                 userdb.fp_user = msg
                 userdb.conversation_state = ACCESS
                 if userdb.save():
-                    update.message.reply_text('Great! Now send me the password.')
+                    update.message.reply_text(PASSWORD_MESSAGE)
         elif userdb.fp_pass is None:  # check if user has a registered password
             encrypt_pass = User.encrypt(msg)
             userdb.fp_pass = encrypt_pass
-            update.message.reply_text('Connecting...')
+            update.message.reply_text(CONNECTING_MESSAGE)
             fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
             if fpapi.initialize_token():
                 userdb.fp_api_token = fpapi.access_token  # get api token
                 userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
                 userdb.fp_api_token_expiration = fpapi.token_expire_timestamp  # get api token expiration date
                 if userdb.save():
-                    update.message.reply_text("Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account.")
+                    update.message.reply_text(CONNECTED_MESSAGE)
                     global USERS
                     USERS = list(User.User.select())
             else:
                 userdb.fp_user = None
                 userdb.fp_pass = None
                 if userdb.save():
-                    update.message.reply_text("I was unable to connect to your freedompop account, please send us your email and password again")
+                    update.message.reply_text(UNABLE_TO_CONNECT)
         # SENDING MESSAGES BLOCK ---------------------------------------------------------
         else:  # has user and password registered
             if update.message.reply_to_message is not None:  # replying to a message
-                original_message = update.message.reply_to_message.text.split('\n', 1)[0]
-                if "Reply: /Reply" in original_message:
-                    phone_number = ""
-                    reply_hash = original_message[13:].lower()  # remove 'Reply: /Reply'
-                    for letter in reply_hash:
-                        phone_number += str(ALPHABET.index(letter))
-                    phone_number = validate_phone_number(phone_number)
-                    if phone_number:
-                        userdb.conversation_state = SEND_TEXT
-                        userdb.send_text_phone = phone_number
-                        if userdb.save():
-                            send_text_message(update, userdb, msg)
+                phone_number = get_phone_number(update.message.reply_to_message.text)
+                if phone_number:
+                    userdb.conversation_state = SEND_TEXT
+                    userdb.send_text_phone = phone_number
+                    if userdb.save():
+                        send_text_message(update, userdb, msg)
                 else:
-                    update.message.reply_text("hello, what can I help you with?")
+                    update.message.reply_text(DEFAULT_MESSAGE)
             elif userdb.conversation_state == SEND_NUMBER:  # just sent the phone number
                 phone_number = validate_phone_number(msg)
                 if phone_number:
                     userdb.conversation_state = SEND_TEXT
                     userdb.send_text_phone = phone_number
                     if userdb.save():
-                        update.message.reply_text("ok now send the message")
+                        update.message.reply_text(SEND_MESSAGE_MESSAGE)
                 else:
-                    update.message.reply_text("that dosen't look like a valid phone number")
+                    update.message.reply_text(INVALID_PHONE_MESSAGE)
+                    update.message.reply_text(PHONE_TIP_MESSAGE)
             elif userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
                 send_text_message(update, userdb, msg)
             else:
-                update.message.reply_text("hello, what can I help you with?")
+                update.message.reply_text(DEFAULT_MESSAGE)
+
+
+def get_phone_number(text):
+    original_message = text.split('\n', 1)[0]
+    if "Reply: /Reply" in original_message:
+        phone_number = ""
+        reply_hash = original_message[13:].lower()  # remove 'Reply: /Reply'
+        for letter in reply_hash:
+            phone_number += str(ALPHABET.index(letter))
+        return validate_phone_number(phone_number)
+
+    return False
 
 
 def send_text_message(update, userdb, message):
     fpapi = initialize_freedompop(userdb)
-    update.message.reply_text("trying to send the message...")
+    update.message.reply_text(SENDING_MESSAGE_MESSAGE)
     if fpapi.send_text_message(userdb.send_text_phone, message):
-        update.message.reply_text("YAY message sent")
+        update.message.reply_text(MESSAGE_SENT_MESSAGE)
         userdb.send_text_phone = None
         userdb.conversation_state = COMP_STATE
         userdb.save()
@@ -140,9 +169,9 @@ def error(bot, update, error):
 
 def new_message(bot, update, args):
     usr = update.message.from_user
-    msg = update.message.text
     if args.__len__() > 1:  # sent command + more than one argument
-        update.message.reply_text("that dosent look like a phone number")
+        update.message.reply_text(INVALID_PHONE_MESSAGE)
+        update.message.reply_text(PHONE_TIP_MESSAGE)
         return
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
@@ -150,16 +179,17 @@ def new_message(bot, update, args):
         if args == []:  # if no argument
             userdb.conversation_state = SEND_NUMBER
             if userdb.save():
-                update.message.reply_text("ok send me the phone numher")
+                update.message.reply_text(SEND_NUMBER_MESSAGE)
         else:  # if it has an argument, it should be the phone number
             phone_number = validate_phone_number(args[0])
             if phone_number:
                 userdb.send_text_phone = phone_number
                 userdb.conversation_state = SEND_TEXT
                 if userdb.save():
-                    update.message.reply_text("ok now send the message")
+                    update.message.reply_text(SEND_MESSAGE_MESSAGE)
             else:
-                update.message.reply_text("that dosent look like a phone number")
+                update.message.reply_text(INVALID_PHONE_MESSAGE)
+                update.message.reply_text(PHONE_TIP_MESSAGE)
 
 
 def help(bot, update):
@@ -167,7 +197,7 @@ def help(bot, update):
 
 
 def about(bot, update):
-    update.message.reply_text('About!')
+    update.message.reply_text(ABOUT_MESSAGE)
 
 
 def cancel(bot, update):
@@ -179,7 +209,7 @@ def cancel(bot, update):
             userdb.conversation_state = ACCESS
         userdb.send_text_phone = None
         userdb.save()
-    update.message.reply_text('Ok, canceled!')
+    update.message.reply_text(CANCELED_MESSAGE)
 
 
 def remove_account(bot, update):
@@ -189,9 +219,9 @@ def remove_account(bot, update):
         userdb = User.User.get(User.User.user_id == usr.id)
         userdb.conversation_state = REMOVE_ACCOUNT
         if userdb.save():
-            update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
+            update.message.reply_text(REMOVE_ACCOUNT_MESSAGE)
     else:
-        update.message.reply_text("You are not logged.")
+        update.message.reply_text(NOT_LOGGED_MESSAGE)
 
 
 def confirm_remove(bot, update):
@@ -201,11 +231,11 @@ def confirm_remove(bot, update):
         userdb = User.User.get(User.User.user_id == usr.id)
         if userdb.conversation_state == REMOVE_ACCOUNT:
             if User.remove_user(userdb.user_id):
-                update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro. Send /start to start again.')
+                update.message.reply_text(ACCOUNT_REMOVED_MESSAGE)
             else:
-                update.message.reply_text("please try again")
+                update.message.reply_text(UNKNOWN_ERROR_MESSAGE)
     else:
-        update.message.reply_text("You are not logged.")
+        update.message.reply_text(NOT_LOGGED_MESSAGE)
 
 
 def plan_usage(bot, update):
@@ -230,11 +260,25 @@ def plan_usage(bot, update):
                 text += label + ": " + content + "\n"
             update.message.reply_text(text)
     else:
-        update.message.reply_text("You are not logged.")
+        update.message.reply_text(NOT_LOGGED_MESSAGE)
 
 
 def other_commands(bot, update):
-    update.message.reply_text("Sorry, I didn't understand that")
+    usr = update.message.from_user
+    msg = update.message.text
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:
+        userdb = User.User.get(User.User.user_id == usr.id)
+        phone_number = get_phone_number("Reply: " + msg)
+        if phone_number:
+            userdb.conversation_state = SEND_TEXT
+            userdb.send_text_phone = phone_number
+            if userdb.save():
+                update.message.reply_text(SEND_MESSAGE_MESSAGE)
+        else:
+            update.message.reply_text(ERROR_MESSAGE)
+    else:
+        update.message.reply_text(ERROR_MESSAGE)
 
 
 def main():
