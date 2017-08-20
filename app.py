@@ -15,11 +15,16 @@ bot.
 """
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram import Bot
 from telegram import ForceReply
 import User
 import logging
 import time
 import re
+import random
+import cgi
+import string
+from threading import Thread
 from datetime import datetime
 from api import FreedomPop
 
@@ -31,6 +36,7 @@ logger = logging.getLogger(__name__)
 USERS = []
 EMAIL = re.compile("[^@]+@[^@]+\.[^@]+")
 END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
+ALPHABET = string.ascii_lowercase[::-1]
 
 
 # Define a few command handlers. These usually take the two arguments bot and
@@ -70,19 +76,21 @@ def text(bot, update):  # handle all messages that are not commands
         elif userdb.fp_pass is None:  # check if user has a registred password
             encrypt_pass = User.encrypt(msg)
             userdb.fp_pass = encrypt_pass
-            if userdb.save():
-                fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
-                if fpapi.initialize_token():
-                    userdb.fp_api_token = fpapi.access_token  # get api token
-                    userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
-                    userdb.fp_api_token_expiration = time.mktime(fpapi.token_expire_timestamp.timetuple())  # get api token expiration date
-                    if userdb.save():
-                        update.message.reply_text("thank you for the password")
-                else:
-                    userdb.fp_user = None
-                    userdb.fp_pass = None
-                    if userdb.save():
-                        update.message.reply_text("I was unable to connect to your freedompop account, please send us your email and password again")
+            update.message.reply_text('Connecting...')
+            fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
+            if fpapi.initialize_token():
+                userdb.fp_api_token = fpapi.access_token  # get api token
+                userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
+                userdb.fp_api_token_expiration = time.mktime(fpapi.token_expire_timestamp.timetuple())  # get api token expiration date
+                if userdb.save():
+                    update.message.reply_text("Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account.")
+                    global USERS
+                    USERS = list(User.User.select())
+            else:
+                userdb.fp_user = None
+                userdb.fp_pass = None
+                if userdb.save():
+                    update.message.reply_text("I was unable to connect to your freedompop account, please send us your email and password again")
         else:  # has user and password registered
             if update.message.reply_to_message != None:  # replying to a message
                 return
@@ -148,12 +156,11 @@ def confirm_remove(bot, update):
 
 def plan_usage(bot, update):
     usr = update.message.from_user
-    msg = update.message.text
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
         userdb = User.User.get(User.User.user_id == usr.id)
         if userdb.fp_user is not None and userdb.fp_pass is not None:
-            text = ""
+            text = "Please check your plan details below:\n\n"
             fpapi = initialize_freedompop(userdb)
             balance = fpapi.get_plan_balance()
             if not balance:
@@ -167,7 +174,9 @@ def plan_usage(bot, update):
                 if dt == "remainingData" or dt == "dataFriendBonusEarned" or dt == "baseData":
                     content = str(int(balance[dt]) / in_mb) + " MB"
                 text += label + ": " + content + "\n"
-            update.message.reply_text("Please check your plan details below:\n\n" + text)
+            update.message.reply_text(text)
+    else:
+        update.message.reply_text("You are not logged.")
 
 
 def other_commands(bot, update):
@@ -206,11 +215,62 @@ def main():
 
     # Start the Bot polling
     updater.start_polling()
+    Thread(target=checker).start()
 
     # Run the bot until you press Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
     # start_polling() is non-blocking and will stop the bot gracefully.
     updater.idle()
+
+
+def checker(*args, **kwargs):  # this is a thread
+    time.sleep(5)
+    bot = Bot("257322944:AAEBk4rQKxskBrmNqvwScsmDmIfvxj2wcAs")
+    while True:
+        users = list(USERS)
+        before = time.time()
+        if users:
+            for userdb in users:
+                if userdb.fp_pass is None:
+                    continue
+                fpapi = initialize_freedompop(userdb)
+                data = check_new_text_message(fpapi, 7200)  # 2 hours
+                if data:
+                    for txt in data['messages']:
+                        if fpapi.mark_as_read(txt['id']):
+                            text = prepare_text(txt)
+                            bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
+        sleeptime = 15 - int(time.time() - before)
+        if sleeptime < 0:
+            sleeptime = 1
+        time.sleep(sleeptime)
+
+
+def prepare_text(txt):
+    reply = ""
+    sender = txt['from']  # phone number
+    for n in sender:
+        letter = ALPHABET[int(n)]
+        reply += random.choice([letter.upper(), letter])
+    #  reply = reply.encode('rot13')  # obfuscated phone number
+    date = datetime.fromtimestamp(float(txt['date'])/1000).strftime('%m/%d/%Y %H:%M:%S')  # date
+    content = cgi.escape(txt['body'])  # text content
+    return "<b>Reply:</b> /Reply%s\n<b>From: +%s @ %s</b>\n\n%s" % (reply, sender, date, content)
+    #  return "<b>Reply:</b> /Reply%s\n<b>From:</b> <b><a href='tel:+%s'>+%s</a></b> <b>@ %s</b>\n\n%s" % (reply, sender, sender, date, content) # TODO
+
+
+def check_new_text_message(fpapi, range):
+    try:
+        currTime = float(time.time())
+        pastTime = currTime - range
+        return fpapi.get_text_messages(timestamp_to_string(pastTime), timestamp_to_string(currTime), False, False, False)
+    except Exception as e:
+        logger.exception(e)
+        return False
+
+
+def timestamp_to_string(timestamp):
+    return str(timestamp).replace('.', '').ljust(13, '0')
 
 
 if __name__ == '__main__':
