@@ -8,12 +8,14 @@ import User
 import logging
 import time
 import re
+import os
 import random
 import cgi
 import string
 from threading import Thread
 from datetime import datetime
 from api import FreedomPop
+import ConfigParser
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -24,6 +26,8 @@ USERS = []
 EMAIL = re.compile("[^@]+@[^@]+\.[^@]+")
 END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER, REMOVE_ACCOUNT = range(8)
 ALPHABET = string.ascii_lowercase[::-1]
+Config = ConfigParser.ConfigParser()
+Config.read("config.ini")
 #  app messages
 DEFAULT_MESSAGE = "Hello there. What can I do for you? You could try /new_message or /plan_usage"
 ABOUT_MESSAGE = "I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?"
@@ -283,7 +287,7 @@ def other_commands(bot, update):
 
 def main():
     # Create the EventHandler and pass it your bot's token.
-    updater = Updater("257322944:AAEBk4rQKxskBrmNqvwScsmDmIfvxj2wcAs")
+    updater = Updater(Config.get('TelegramAPI', 'api_token'))
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
@@ -324,7 +328,7 @@ def main():
 
 def checker(*args, **kwargs):  # this is a thread
     time.sleep(5)
-    bot = Bot("257322944:AAEBk4rQKxskBrmNqvwScsmDmIfvxj2wcAs")
+    bot = Bot(Config.get('TelegramAPI', 'api_token'))
     while True:
         users = list(USERS)
         before = time.time()
@@ -345,6 +349,14 @@ def checker(*args, **kwargs):  # this is a thread
                         if fpapi.mark_as_read(txt['id']):
                             text = prepare_text(txt)
                             bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
+                else:
+                    errors = int(userdb.fp_api_connection_errors)
+                    if errors > 50:
+                        if User.remove_user(userdb.user_id):
+                            bot.sendMessage(chat_id=userdb.user_id, text=WRONG_CREDENTIALS_MESSAGE)
+                    else:
+                        userdb.fp_api_connection_errors = errors + 1
+
         sleep_time = 15 - int(time.time() - before)
         if sleep_time < 0:
             sleep_time = 1

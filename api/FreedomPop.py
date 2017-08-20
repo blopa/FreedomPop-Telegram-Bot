@@ -2,7 +2,10 @@ import json
 import base64
 import datetime
 import requests
-import sys
+import ConfigParser
+
+Config = ConfigParser.ConfigParser()
+Config.read("config.ini")
 
 
 class FreedomPop:
@@ -10,9 +13,9 @@ class FreedomPop:
     token_expire_timestamp = None
     access_token = None
 
-    api_client = sys.argv[4]
-    api_secret = sys.argv[5]
-    api_app = sys.argv[6]
+    api_client = Config.get('FreedomPopAPI', 'api_client')
+    api_secret = Config.get('FreedomPopAPI', 'api_secret')
+    api_app = Config.get('FreedomPopAPI', 'api_app')
     end_point = "https://api.freedompop.com"
 
     def __init__(self, username, password):

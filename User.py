@@ -1,16 +1,17 @@
-import sys
 import logging
 from peewee import *
 from cryptography.fernet import Fernet
 from peewee import TimestampField
+import ConfigParser
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
+Config = ConfigParser.ConfigParser()
+Config.read("config.ini")
+CRYPTO = Fernet(Config.get('Cryptography', 'crypto_key'))
+DATABASE = SqliteDatabase('userdb.db')  # create database to interact with
 
-CRYPTO = Fernet(sys.argv[2])
-DATABASE = SqliteDatabase('userdb.db') #create database to interact with
-
-#create a class for users
+# create a class for users
 class User(Model):
     name = CharField()
     user_id = CharField(unique=True)
@@ -20,6 +21,7 @@ class User(Model):
     fp_api_token = CharField(null=True)
     fp_api_refresh_token = CharField(null=True)
     fp_api_token_expiration = TimestampField(null=True)
+    fp_api_connection_errors = IntegerField(default=0)
     send_text_phone = IntegerField(null=True)
     created_at = TimestampField(null=False)
     updated_at = TimestampField(null=False)
