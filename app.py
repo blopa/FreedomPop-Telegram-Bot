@@ -1,18 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-#
-# Simple Bot to reply to Telegram messages
-# This program is dedicated to the public domain under the CC0 license.
-"""
-This Bot uses the Updater class to handle the bot.
-First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import Bot
@@ -81,7 +68,7 @@ def text(bot, update):  # handle all messages that are not commands
             if fpapi.initialize_token():
                 userdb.fp_api_token = fpapi.access_token  # get api token
                 userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
-                userdb.fp_api_token_expiration = time.mktime(fpapi.token_expire_timestamp.timetuple())  # get api token expiration date
+                userdb.fp_api_token_expiration = fpapi.token_expire_timestamp  # get api token expiration date
                 if userdb.save():
                     update.message.reply_text("Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account.")
                     global USERS
@@ -92,28 +79,58 @@ def text(bot, update):  # handle all messages that are not commands
                 if userdb.save():
                     update.message.reply_text("I was unable to connect to your freedompop account, please send us your email and password again")
         else:  # has user and password registered
-            if update.message.reply_to_message != None:  # replying to a message
-                return
+            if update.message.reply_to_message is not None:  # replying to a message
+                original_message = update.message.reply_to_message.text.split('\n', 1)[0]
+                if "Reply: /Reply" in original_message:
+                    phone_number = ""
+                    reply_hash = original_message[13:].lower()  # remove 'Reply: /Reply'
+                    for letter in reply_hash:
+                        phone_number += str(ALPHABET.index(letter))
+                    phone_number = validate_phone_number(phone_number)
+                    if phone_number:
+                        userdb.conversation_state = SEND_TEXT
+                        userdb.send_text_phone = phone_number
+                        if userdb.save():
+                            send_text_message(update, userdb, msg)
+                else:
+                    update.message.reply_text("hello, what can I help you with?")
             elif userdb.conversation_state == SEND_NUMBER:  # just sent the phone number
-                userdb.conversation_state = SEND_TEXT
-                userdb.send_text_phone = msg
-                if userdb.save():
-                    update.message.reply_text("ok now send the message")
-            elif userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
-                fpapi = initialize_freedompop(userdb)
-                update.message.reply_text("trying to send the message...")
-                if fpapi.send_text_message(userdb.send_text_phone, msg):
-                    update.message.reply_text("YAY message sent")
-                    userdb.send_text_phone = None
-                    userdb.conversation_state = COMP_STATE
-                    userdb.save()
+                phone_number = validate_phone_number(msg)
+                if phone_number:
+                    userdb.conversation_state = SEND_TEXT
+                    userdb.send_text_phone = phone_number
+                    if userdb.save():
+                        update.message.reply_text("ok now send the message")
+                else:
+                    update.message.reply_text("that dosen't look like a valid phone number")
+
+            if userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
+                send_text_message(update, userdb, msg)
+
+
+def send_text_message(update, userdb, message):
+    fpapi = initialize_freedompop(userdb)
+    update.message.reply_text("trying to send the message...")
+    if fpapi.send_text_message(userdb.send_text_phone, message):
+        update.message.reply_text("YAY message sent")
+        userdb.send_text_phone = None
+        userdb.conversation_state = COMP_STATE
+        userdb.save()
+
+
+def validate_phone_number(message):
+    non_decimal = re.compile(r'[^\d]+')
+    number = non_decimal.sub('', message)
+    if number == "":
+        return False
+    return number
 
 
 def initialize_freedompop(userdb):
     fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
     fpapi.access_token = userdb.fp_api_token
     fpapi.refresh_token = userdb.fp_api_refresh_token
-    fpapi.token_expire_timestamp = datetime.fromtimestamp(userdb.fp_api_token_expiration)
+    fpapi.token_expire_timestamp = userdb.fp_api_token_expiration
 
     return fpapi
 
@@ -125,21 +142,25 @@ def error(bot, update, error):
 def new_message(bot, update, args):
     usr = update.message.from_user
     msg = update.message.text
-    if args.__len__() > 1:
+    if args.__len__() > 1:  # sent command + more than one argument
         update.message.reply_text("that dosent look like a phone number")
         return
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
         userdb = User.User.get(User.User.user_id == usr.id)
-        if args == []:
+        if args == []:  # if no argument
             userdb.conversation_state = SEND_NUMBER
             if userdb.save():
                 update.message.reply_text("ok send me the phone numher")
-        else:
-            userdb.send_text_phone = args[0]
-            userdb.conversation_state = SEND_TEXT
-            if userdb.save():
-                update.message.reply_text("ok now send the message")
+        else:  # if it has an argument, it should be the phone number
+            phone_number = validate_phone_number(args[0])
+            if phone_number:
+                userdb.send_text_phone = phone_number
+                userdb.conversation_state = SEND_TEXT
+                if userdb.save():
+                    update.message.reply_text("ok now send the message")
+            else:
+                update.message.reply_text("that dosent look like a phone number")
 
 
 def cancel(bot, update):
@@ -234,16 +255,22 @@ def checker(*args, **kwargs):  # this is a thread
                 if userdb.fp_pass is None:
                     continue
                 fpapi = initialize_freedompop(userdb)
+                if int(time.time() + 86400) > time.mktime(userdb.fp_api_token_expiration.timetuple()):  # 24 hours
+                    fpapi.refresh_access_token()
+                    userdb.fp_api_token = fpapi.access_token  # get api token
+                    userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
+                    userdb.fp_api_token_expiration = fpapi.token_expire_timestamp  # get api token exp date
+                    userdb.save()
                 data = check_new_text_message(fpapi, 7200)  # 2 hours
-                if data:
+                if data is not False:
                     for txt in data['messages']:
                         if fpapi.mark_as_read(txt['id']):
                             text = prepare_text(txt)
                             bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
-        sleeptime = 15 - int(time.time() - before)
-        if sleeptime < 0:
-            sleeptime = 1
-        time.sleep(sleeptime)
+        sleep_time = 15 - int(time.time() - before)
+        if sleep_time < 0:
+            sleep_time = 1
+        time.sleep(sleep_time)
 
 
 def prepare_text(txt):

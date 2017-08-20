@@ -94,7 +94,7 @@ class FreedomPop:
     def get_plan_balance(self):
         details = {}
         data = self.get_balance(2)  # number of app_version to start
-        if data:
+        if data is not False:
             for dt in data:
                 if dt['type'] == 'DATA_PLAN':
                     details['baseData'] = str(dt['baseData'])

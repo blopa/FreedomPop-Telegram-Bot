@@ -2,6 +2,8 @@ import sys
 import logging
 from peewee import *
 from cryptography.fernet import Fernet
+from peewee import TimestampField
+
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -17,10 +19,10 @@ class User(Model):
     fp_pass = CharField(null=True)
     fp_api_token = CharField(null=True)
     fp_api_refresh_token = CharField(null=True)
-    fp_api_token_expiration = DateTimeField(null=True)
+    fp_api_token_expiration = TimestampField(null=True)
     send_text_phone = IntegerField(null=True)
-    created_at = DateTimeField(null=False)
-    updated_at = DateTimeField(null=False)
+    created_at = TimestampField(null=False)
+    updated_at = TimestampField(null=False)
 
     class Meta:
         database = DATABASE
