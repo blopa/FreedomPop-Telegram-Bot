@@ -112,7 +112,7 @@ def text(bot, update):  # handle all messages that are not commands
                         send_text_message(update, userdb, msg)
                 else:
                     send_bot_reply(update, DEFAULT_MESSAGE)
-            elif userdb.conversation_state == SEND_NUMBER:  # just sent the phone number
+            elif int(userdb.conversation_state) == SEND_NUMBER:  # just sent the phone number
                 phone_number = validate_phone_number(msg)
                 if phone_number:
                     userdb.conversation_state = SEND_TEXT
@@ -122,7 +122,7 @@ def text(bot, update):  # handle all messages that are not commands
                 else:
                     send_bot_reply(update, INVALID_PHONE_MESSAGE)
                     send_bot_reply(update, PHONE_TIP_MESSAGE)
-            elif userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
+            elif userdb.send_text_phone is not None and int(userdb.conversation_state) == SEND_TEXT:  # just send the text body
                 send_text_message(update, userdb, msg)
             else:
                 send_bot_reply(update, DEFAULT_MESSAGE)

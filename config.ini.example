@@ -1,0 +1,10 @@
+[TelegramAPI]
+token=API_TOKEN_HERE
+
+[FreedomPopAPI]
+api_client=API_CLIENT_HERE
+api_secret=API_SECRET_HERE
+api_app=API_APP_HERE
+
+[Cryptography]
+crypto_key=CRYPTOGRAPHY_KEY_HERE
