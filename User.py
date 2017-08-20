@@ -15,7 +15,7 @@ DATABASE = SqliteDatabase('userdb.db')  # create database to interact with
 class User(Model):
     name = CharField()
     user_id = CharField(unique=True)
-    conversation_state = IntegerField()
+    conversation_state = CharField()
     fp_user = CharField(null=True)
     fp_pass = CharField(null=True)
     fp_api_token = CharField(null=True)
