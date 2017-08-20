@@ -22,7 +22,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 USERS = []
 EMAIL = re.compile("[^@]+@[^@]+\.[^@]+")
-END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
+END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER, REMOVE_ACCOUNT = range(8)
 ALPHABET = string.ascii_lowercase[::-1]
 
 
@@ -42,17 +42,14 @@ def start(bot, update):
             update.message.reply_text("Please send me your FreedomPop e-mail.")
 
 
-def help(bot, update):
-    update.message.reply_text('Help!')
-
-
 def text(bot, update):  # handle all messages that are not commands
     usr = update.message.from_user
     msg = update.message.text
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
         userdb = User.User.get(User.User.user_id == usr.id)
-        if userdb.fp_user is None:  # check if user has a registred email
+        # REGISTRATION BLOCK ---------------------------------------------------------
+        if userdb.fp_user is None:  # check if user has a registered email
             if not EMAIL.match(msg):
                 update.message.reply_text("that dosent look like a valid email")
             else:
@@ -60,7 +57,7 @@ def text(bot, update):  # handle all messages that are not commands
                 userdb.conversation_state = ACCESS
                 if userdb.save():
                     update.message.reply_text('Great! Now send me the password.')
-        elif userdb.fp_pass is None:  # check if user has a registred password
+        elif userdb.fp_pass is None:  # check if user has a registered password
             encrypt_pass = User.encrypt(msg)
             userdb.fp_pass = encrypt_pass
             update.message.reply_text('Connecting...')
@@ -78,6 +75,7 @@ def text(bot, update):  # handle all messages that are not commands
                 userdb.fp_pass = None
                 if userdb.save():
                     update.message.reply_text("I was unable to connect to your freedompop account, please send us your email and password again")
+        # SENDING MESSAGES BLOCK ---------------------------------------------------------
         else:  # has user and password registered
             if update.message.reply_to_message is not None:  # replying to a message
                 original_message = update.message.reply_to_message.text.split('\n', 1)[0]
@@ -103,9 +101,10 @@ def text(bot, update):  # handle all messages that are not commands
                         update.message.reply_text("ok now send the message")
                 else:
                     update.message.reply_text("that dosen't look like a valid phone number")
-
-            if userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
+            elif userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
                 send_text_message(update, userdb, msg)
+            else:
+                update.message.reply_text("hello, what can I help you with?")
 
 
 def send_text_message(update, userdb, message):
@@ -163,16 +162,50 @@ def new_message(bot, update, args):
                 update.message.reply_text("that dosent look like a phone number")
 
 
+def help(bot, update):
+    update.message.reply_text('Help!')
+
+
+def about(bot, update):
+    update.message.reply_text('About!')
+
+
 def cancel(bot, update):
-    return
+    usr = update.message.from_user
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:  # check if user is on our database
+        userdb = User.User.get(User.User.user_id == usr.id)
+        if userdb.fp_user is not None and userdb.fp_pass is not None:
+            userdb.conversation_state = ACCESS
+        userdb.send_text_phone = None
+        userdb.save()
+    update.message.reply_text('Ok, canceled!')
 
 
 def remove_account(bot, update):
-    return
+    usr = update.message.from_user
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:  # check if user is on our database
+        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb.conversation_state = REMOVE_ACCOUNT
+        if userdb.save():
+            update.message.reply_text('Really? :( send /confirm_remove to confirm or /cancel to cancel.')
+    else:
+        update.message.reply_text("You are not logged.")
 
 
 def confirm_remove(bot, update):
-    return
+    usr = update.message.from_user
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:  # check if user is on our database
+        userdb = User.User.get(User.User.user_id == usr.id)
+        if userdb.conversation_state == REMOVE_ACCOUNT:
+            if User.remove_user(userdb.user_id):
+                update.message.reply_text('Ok, account removed. Please give my maker a feedback about me :D @PabloMontenegro. Send /start to start again.')
+            else:
+                update.message.reply_text("please try again")
+    else:
+        update.message.reply_text("You are not logged.")
 
 
 def plan_usage(bot, update):
@@ -201,7 +234,7 @@ def plan_usage(bot, update):
 
 
 def other_commands(bot, update):
-    return
+    update.message.reply_text("Sorry, I didn't understand that")
 
 
 def main():
@@ -214,6 +247,7 @@ def main():
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
+    dp.add_handler(CommandHandler("about", about))
     dp.add_handler(CommandHandler("cancel", cancel))
     dp.add_handler(CommandHandler("remove_account", remove_account))
     dp.add_handler(CommandHandler("confirm_remove", confirm_remove))
