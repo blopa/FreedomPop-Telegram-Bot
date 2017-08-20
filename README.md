@@ -23,7 +23,9 @@ It will print out a cryptography key:
 
 Rename the file `config.ini.example` to `config.ini` and fill all the information, then run:
 
-`nohup python app.py >/dev/null 2>&1 &`
+```sh
+nohup python app.py >/dev/null 2>&1 &
+```
 
 # Info
 
