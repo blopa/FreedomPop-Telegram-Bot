@@ -1,35 +1,34 @@
 import sys
 import logging
-from api.freedompop import FreedomPop
 from peewee import *
 from cryptography.fernet import Fernet
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CRYPTO = Fernet(sys.argv[2])
-db = SqliteDatabase('userdb.db')
+DATABASE = SqliteDatabase('userdb.db') #create database to interact with
 
-
+#create a class for users
 class User(Model):
     name = CharField()
     user_id = CharField(unique=True)
+    conversation_state = IntegerField()
     fp_user = CharField(null=True)
     fp_pass = CharField(null=True)
     fp_api_token = CharField(null=True)
+    fp_api_refresh_token = CharField(null=True)
     fp_api_token_expiration = DateTimeField(null=True)
+    send_text_phone = IntegerField(null=True)
     created_at = DateTimeField(null=False)
     updated_at = DateTimeField(null=False)
-    conversation_state = CharField()
 
     class Meta:
-        database = db
+        database = DATABASE
 
-    def __init__(self, *args, **kwargs):
-        super(User, self).__init__(*args, **kwargs)
-
-
-def create_tb():
-    User.create_table(True)
+def initialize_db():
+    #db.connect()
+    DATABASE.create_tables([User], safe=True)
+    #db.close()
 
 
 def remove_user(user_id):
@@ -49,4 +48,4 @@ def encrypt(plain_text):
 
 
 def decrypt(cipher_text):
-    return CRYPTO.decrypt(cipher_text)
+    return CRYPTO.decrypt(str(cipher_text))

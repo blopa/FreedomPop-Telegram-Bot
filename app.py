@@ -16,10 +16,12 @@ bot.
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import ForceReply
-import bot_user
+import User
 import logging
 import time
 import re
+from datetime import datetime
+from api import FreedomPop
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -36,47 +38,76 @@ END, USER_STEP, PASS_STEP, ACCESS, COMP_STATE, SEND_TEXT, SEND_NUMBER = range(7)
 def start(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    result = bot_user.User.select().where(bot_user.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:
-        userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
+        userdb = User.User.get(User.User.user_id == usr.id)
         update.message.reply_text("Hello there. What do you want to do?")
     else:
         update.message.reply_text("Hello, I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?")
-        userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conversation_state=PASS_STEP, created_at=time.time(), updated_at=time.time())
+        userdb = User.User(name=usr.first_name, user_id=usr.id, conversation_state=PASS_STEP, created_at=time.time(), updated_at=time.time())
         if userdb.save():
             update.message.reply_text("Please send me your FreedomPop e-mail.")
-
-
-def getUsers():
-    global USERS
-try:
-    USERS = list(bot_user.User.select())
-except Exception as e:
-    logger.exception(e)
 
 
 def help(bot, update):
     update.message.reply_text('Help!')
 
 
-def text(bot, update):
+def text(bot, update):  # handle all messages that are not commands
     usr = update.message.from_user
     msg = update.message.text
-    result = bot_user.User.select().where(bot_user.User.user_id == usr.id).execute()
-    if result:
-        userdb = bot_user.User.get(bot_user.User.user_id == usr.id)
-        if userdb.fp_user == None:
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:  # check if user is on our database
+        userdb = User.User.get(User.User.user_id == usr.id)
+        if userdb.fp_user is None:  # check if user has a registred email
             if not EMAIL.match(msg):
                 update.message.reply_text("that dosent look like a valid email")
             else:
-                result = bot_user.User.update(fp_user=update.message.text, conversation_state=ACCESS).where(bot_user.User.user_id == usr.id)
-                if result.execute():
+                userdb.fp_user = msg
+                userdb.conversation_state = ACCESS
+                if userdb.save():
                     update.message.reply_text('Great! Now send me the password.')
+        elif userdb.fp_pass is None:  # check if user has a registred password
+            encrypt_pass = User.encrypt(msg)
+            userdb.fp_pass = encrypt_pass
+            if userdb.save():
+                fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
+                if fpapi.initialize_token():
+                    userdb.fp_api_token = fpapi.access_token  # get api token
+                    userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
+                    userdb.fp_api_token_expiration = time.mktime(fpapi.token_expire_timestamp.timetuple())  # get api token expiration date
+                    if userdb.save():
+                        update.message.reply_text("thank you for the password")
+                else:
+                    userdb.fp_user = None
+                    userdb.fp_pass = None
+                    if userdb.save():
+                        update.message.reply_text("I was unable to connect to your freedompop account, please send us your email and password again")
+        else:  # has user and password registered
+            if update.message.reply_to_message != None:  # replying to a message
+                return
+            elif userdb.conversation_state == SEND_NUMBER:  # just sent the phone number
+                userdb.conversation_state = SEND_TEXT
+                userdb.send_text_phone = msg
+                if userdb.save():
+                    update.message.reply_text("ok now send the message")
+            elif userdb.send_text_phone is not None and userdb.conversation_state == SEND_TEXT:  # just send the text body
+                fpapi = initialize_freedompop(userdb)
+                update.message.reply_text("trying to send the message...")
+                if fpapi.send_text_message(userdb.send_text_phone, msg):
+                    update.message.reply_text("YAY message sent")
+                    userdb.send_text_phone = None
+                    userdb.conversation_state = COMP_STATE
+                    userdb.save()
 
-    if update.message.reply_to_message != None:
-        return
-    update.message.reply_text(update.message.text)
-    bot.send_message(update.message.from_user.id, 'text', reply_markup=ForceReply(True, False))
+
+def initialize_freedompop(userdb):
+    fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
+    fpapi.access_token = userdb.fp_api_token
+    fpapi.refresh_token = userdb.fp_api_refresh_token
+    fpapi.token_expire_timestamp = datetime.fromtimestamp(userdb.fp_api_token_expiration)
+
+    return fpapi
 
 
 def error(bot, update, error):
@@ -84,9 +115,23 @@ def error(bot, update, error):
 
 
 def new_message(bot, update, args):
+    usr = update.message.from_user
+    msg = update.message.text
     if args.__len__() > 1:
         update.message.reply_text("that dosent look like a phone number")
-    update.message.reply_text(update.message.text)
+        return
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:  # check if user is on our database
+        userdb = User.User.get(User.User.user_id == usr.id)
+        if args == []:
+            userdb.conversation_state = SEND_NUMBER
+            if userdb.save():
+                update.message.reply_text("ok send me the phone numher")
+        else:
+            userdb.send_text_phone = args[0]
+            userdb.conversation_state = SEND_TEXT
+            if userdb.save():
+                update.message.reply_text("ok now send the message")
 
 
 def cancel(bot, update):
@@ -99,6 +144,30 @@ def remove_account(bot, update):
 
 def confirm_remove(bot, update):
     return
+
+
+def plan_usage(bot, update):
+    usr = update.message.from_user
+    msg = update.message.text
+    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    if result:  # check if user is on our database
+        userdb = User.User.get(User.User.user_id == usr.id)
+        if userdb.fp_user is not None and userdb.fp_pass is not None:
+            text = ""
+            fpapi = initialize_freedompop(userdb)
+            balance = fpapi.get_plan_balance()
+            if not balance:
+                balance = fpapi.get_usage()
+            if not balance:
+                balance = fpapi.get_text_messages_balance()
+            for dt in balance:
+                in_mb = 1024 * 1024
+                label = dt[0].upper() + dt[1:]
+                content = balance[dt]
+                if dt == "remainingData" or dt == "dataFriendBonusEarned" or dt == "baseData":
+                    content = str(int(balance[dt]) / in_mb) + " MB"
+                text += label + ": " + content + "\n"
+            update.message.reply_text("Please check your plan details below:\n\n" + text)
 
 
 def other_commands(bot, update):
@@ -119,6 +188,7 @@ def main():
     dp.add_handler(CommandHandler("remove_account", remove_account))
     dp.add_handler(CommandHandler("confirm_remove", confirm_remove))
     dp.add_handler(CommandHandler("new_message", new_message))
+    dp.add_handler(CommandHandler("plan_usage", plan_usage))
     dp.add_handler(CommandHandler("new", new_message, pass_args=True))
     dp.add_handler(MessageHandler(Filters.command, other_commands))
 
@@ -129,9 +199,9 @@ def main():
     dp.add_error_handler(error)
 
     # load users
-    bot_user.db.connect()
-    bot_user.create_tb()
-    getUsers()
+    User.initialize_db()
+    global USERS
+    USERS = list(User.User.select())
     # start sms thread
 
     # Start the Bot polling
