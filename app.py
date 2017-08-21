@@ -9,7 +9,7 @@ import thread
 import time
 import bot_user
 from telegram import Bot
-from telegram import (ReplyKeyboardMarkup, ReplyKeyboardHide)
+from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
 from api import botan
 
@@ -108,7 +108,7 @@ def user(bot, update):
 
     userdb = bot_user.User(name=usr.first_name, user_id=usr.id, conver_state=PASS_STEP)
     if userdb.save():
-        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail', reply_markup=ReplyKeyboardHide())
+        update.message.reply_text('Awesome! Please send me your FreedomPop e-mail', reply_markup=ReplyKeyboardRemove())
         return PASS_STEP
     else:
         update.message.reply_text('Ops, something went wrong, try again!')
