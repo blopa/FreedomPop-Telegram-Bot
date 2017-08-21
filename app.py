@@ -307,6 +307,7 @@ def checker(*args, **kwargs):  # this is a thread
     bot = Bot(API_KEY)
     while True:
         before = time.time()
+        print "before: " + str(before)
         users = list(USERS)
         if users:
             for usr in users:
@@ -320,6 +321,7 @@ def checker(*args, **kwargs):  # this is a thread
                         del ERROR_CONN[usr.user_id]
                     for txt in data['messages']:
                         if usr.api.setAsRead(txt['id']):
+                            print "sms arrived!!"
                             text = prepareText(txt)
                             bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='HTML')
                             try:
@@ -333,6 +335,7 @@ def checker(*args, **kwargs):  # this is a thread
                         FLAG_DEL[usr.user_id] = '1'
 
         sleeptime = 15 - int(time.time() - before)
+        print "sleeptime: " + str(sleeptime)
         if sleeptime < 0:
             sleeptime = 1
         time.sleep(sleeptime)
