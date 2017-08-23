@@ -3,12 +3,10 @@
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import Bot
-from telegram import ForceReply
 import User
 import logging
 import time
 import re
-import os
 import random
 import cgi
 import string
