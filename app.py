@@ -11,7 +11,6 @@ import bot_user
 from telegram import Bot
 from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove)
 from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, ConversationHandler)
-from api import botan
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -150,10 +149,6 @@ def access(bot, update):
                     USERS = list(bot_user.User.select())
                     update.message.reply_text('Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account.')
                     update.message.reply_text('Use /new_message to compose a new message. Or simply "/new <PHONE_NUMBER>"')
-                    try:
-                        botan.track(botan_token, update.message.from_user.id, {0: 'user registered'}, 'user registered')
-                    except Exception as e:
-                        logger.exception(e)
                     return COMP_STATE
                 else:
                     update.message.reply_text('Something went wrong, send me your password again!')
@@ -217,10 +212,6 @@ def sendText(bot, update):
             if userdb.api.initToken():
                 if userdb.api.sendSMS(replyto, msg):
                     del REPLY_TO[usr.id]
-                    try:
-                        botan.track(botan_token, update.message.from_user.id, {0: 'message sent'}, 'message sent')
-                    except Exception as e:
-                        logger.exception(e)
                     update.message.reply_text('Message sent! YAY')
                     smsbalance = userdb.api.getSMSBalance()
                     if smsbalance:
@@ -323,9 +314,8 @@ def checker(*args, **kwargs):  # this is a thread
                         if usr.api.setAsRead(txt['id']):
                             print "sms arrived!!"
                             text = prepareText(txt)
-                            bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='HTML')
                             try:
-                                botan.track(botan_token, usr.user_id, {0: 'message received'}, 'message received')
+                                bot.sendMessage(chat_id=usr.user_id, text=text, parse_mode='HTML')
                             except Exception as e:
                                 logger.exception(e)
                 else:
