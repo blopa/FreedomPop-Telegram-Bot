@@ -13,6 +13,7 @@ import string
 from threading import Thread
 from datetime import datetime
 from api import FreedomPop
+from pprint import pprint
 import ConfigParser
 
 # Enable logging
@@ -337,38 +338,39 @@ def checker(*args, **kwargs):  # this is a thread
     while True:
         users = list(USERS)
         before = time.time()
+        print before
         if users:
-            for userdb in users:
-                if userdb.fp_pass is None:
-                    continue
-                fpapi = initialize_freedompop(userdb)
-                if int(time.time() + 86400) > time.mktime(userdb.fp_api_token_expiration.timetuple()):  # 24 hours
-                    fpapi.refresh_access_token()
-                    userdb.fp_api_token = fpapi.access_token  # get api token
-                    userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
-                    userdb.fp_api_token_expiration = fpapi.token_expire_timestamp  # get api token exp date
-                    userdb.save()
-                data = check_new_text_message(fpapi, 7200)  # 2 hours
-                if data is not False:
-                    for txt in data['messages']:
-                        if fpapi.mark_as_read(txt['id']):
-                            text = prepare_text(txt)
-                            try:
+            try:
+                for userdb in users:
+                    if userdb.fp_pass is None:
+                        continue
+                    fpapi = initialize_freedompop(userdb)
+                    #  print "checking user: " + userdb.user_id
+                    if int(time.time() + 86400) > time.mktime(userdb.fp_api_token_expiration.timetuple()):  # 24 hours
+                        fpapi.refresh_access_token()
+                        userdb.fp_api_token = fpapi.access_token  # get api token
+                        userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
+                        userdb.fp_api_token_expiration = fpapi.token_expire_timestamp  # get api token exp date
+                        userdb.save()
+                    data = check_new_text_message(fpapi, 7200)  # 2 hours
+                    if data is not False:
+                        for txt in data['messages']:
+                            #  print "SMS arrived!!!"
+                            if fpapi.mark_as_read(txt['id']):
+                                text = prepare_text(txt)
                                 bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
-                            except Exception as e:
-                                logger.exception(e)
-                else:
-                    errors = int(userdb.fp_api_connection_errors)
-                    if errors > 50:
-                        if User.remove_user(userdb.user_id):
-                            try:
-                                bot.sendMessage(chat_id=userdb.user_id, text=WRONG_CREDENTIALS_MESSAGE)
-                            except Exception as e:
-                                logger.exception(e)
                     else:
-                        userdb.fp_api_connection_errors = errors + 1
+                        errors = int(userdb.fp_api_connection_errors)
+                        if errors > 50:
+                            if User.remove_user(userdb.user_id):
+                                bot.sendMessage(chat_id=userdb.user_id, text=WRONG_CREDENTIALS_MESSAGE)
+                        else:
+                            userdb.fp_api_connection_errors = errors + 1
+            except Exception as e:
+                logger.exception(e)
 
         sleep_time = 15 - int(time.time() - before)
+        #  print sleep_time
         if sleep_time < 0:
             sleep_time = 1
         time.sleep(sleep_time)
