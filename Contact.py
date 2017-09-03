@@ -27,7 +27,7 @@ def initialize_db():
     #db.close()
 
 
-def remove_user(id):
+def remove_contact(id):
     query = Contact.delete().where(Contact.id == id)
     if query.execute():
         return True
