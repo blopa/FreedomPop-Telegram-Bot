@@ -42,6 +42,7 @@ WRONG_CREDENTIALS_MESSAGE = "Something is wrong with your credentials, please re
 CONNECTING_MESSAGE = "Trying to connect to FreedomPop servers..."
 ENCRYPT_PASSWORD = "Encrypting your password..."
 DONE = "Done!"
+ACCOUNT_DETAILS = "Please check your %s details below:\n\n"
 CONNECTED_MESSAGE = "Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account."
 SEND_NUMBER_MESSAGE = "Alright, send me the phone number w/ country code or /cancel to cancel."
 SEND_MESSAGE_MESSAGE = "Alright, send the message or /cancel to cancel."
@@ -253,6 +254,24 @@ def confirm_remove(bot, update):
         send_bot_reply(update, NOT_LOGGED_MESSAGE)
 
 
+def get_sip(bot, update):
+    usr = update.message.from_user
+    result = User.User.select().where(User.User.user_id == usr.id)
+    if result:  # check if user is on our database
+        userdb = result.first()
+        if userdb.fp_user is not None and userdb.fp_pass is not None:
+            fpapi = initialize_freedompop(userdb)
+            sip_config = fpapi.get_sip_config()
+            msg = ACCOUNT_DETAILS % ("SIP")
+            msg += sip_config['accountName'] + "\n"
+            msg += "Server: %s\n" % (sip_config['server'])
+            msg += "Username:\n%s\n" % (sip_config['username'])
+            msg += "Password:\n%s" % (sip_config['password'])
+            send_bot_reply(update, msg)
+        else:
+            send_bot_reply(update, NOT_LOGGED_MESSAGE)
+
+
 def plan_usage(bot, update):
     usr = update.message.from_user
     result = User.User.select().where(User.User.user_id == usr.id)
@@ -260,7 +279,7 @@ def plan_usage(bot, update):
         #  userdb = User.User.get(User.User.user_id == usr.id)
         userdb = result.first()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
-            text = "Please check your plan details below:\n\n"
+            text = ACCOUNT_DETAILS % ("plan")
             fpapi = initialize_freedompop(userdb)
             balance = fpapi.get_plan_balance()
             if not balance:
@@ -322,6 +341,7 @@ def main():
     dp.add_handler(CommandHandler("new_message", new_message))
     dp.add_handler(CommandHandler("plan_usage", plan_usage))
     dp.add_handler(CommandHandler("new", new_message, pass_args=True))
+    dp.add_handler(CommandHandler("get_sip", get_sip))
     dp.add_handler(MessageHandler(Filters.command, other_commands))
     dp.add_handler(MessageHandler(Filters.contact, add_contact))
 
