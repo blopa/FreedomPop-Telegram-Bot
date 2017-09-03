@@ -11,8 +11,8 @@ DATABASE = SqliteDatabase('userdb.db')  # create database to interact with
 # create a class for users
 class Contact(Model):
     #  id = PrimaryKeyField()
-    user_id = CharField(unique=True)
-    #  user = ForeignKeyField(User, related_name='contacts')
+    #  user_id = CharField(unique=True)
+    user = ForeignKeyField(User, related_name='contacts')
     name = CharField()
     phone_number = CharField()
     created_at = TimestampField(null=False)

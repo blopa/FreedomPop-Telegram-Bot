@@ -31,6 +31,7 @@ Config.read("config.ini")
 #  app messages
 DEFAULT_MESSAGE = "Hello there. What can I do for you? You could try /new_message or /plan_usage"
 ABOUT_MESSAGE = "I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?"
+HELP_MESSAGE = 'Need help? Here is a full list of all commands and features:\n\n/help - Get help.\n/about - Get information about this bot.\n/new_message - Send a new text message.\n/new - Usage: "/new <PHONE_NUMBER>".\n/plan_usage - Get your plan usage.\n/remove_account - Remove your Bot account.\n\nYou can also send me a contact from your phone so I can display your contact name whenever he/she sends you a message'
 EMAIL_MESSAGE = "Please send me your FreedomPop e-mail."
 PASSWORD_MESSAGE = "Great! Now send me the password."
 INVALID_EMAIL_MESSAGE = "Hmn.. that dosen't look like a valid email. Could you please try again?"
@@ -38,7 +39,9 @@ INVALID_PHONE_MESSAGE = "Hmn.. that dosen't look like a valid phone number. Coul
 PHONE_TIP_MESSAGE = 'Try typing "/new" plus a valid phone number, like "/new <PHONE_NUMBER>".'
 UNABLE_TO_CONNECT = "I was unable to connect to your FreedomPop account :( please send us your email and password again."
 WRONG_CREDENTIALS_MESSAGE = "Something is wrong with your credentials, please register again using the /start command."
-CONNECTING_MESSAGE = "Connecting..."
+CONNECTING_MESSAGE = "Trying to connect to FreedomPop servers..."
+ENCRYPT_PASSWORD = "Encrypting your password..."
+DONE = "Done!"
 CONNECTED_MESSAGE = "Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account."
 SEND_NUMBER_MESSAGE = "Alright, send me the phone number w/ country code or /cancel to cancel."
 SEND_MESSAGE_MESSAGE = "Alright, send the message or /cancel to cancel."
@@ -86,10 +89,12 @@ def text(bot, update):  # handle all messages that are not commands
                 if userdb.save():
                     send_bot_reply(update, PASSWORD_MESSAGE)
         elif userdb.fp_pass is None:  # check if user has a registered password
+            send_bot_reply(update, ENCRYPT_PASSWORD)
             encrypt_pass = User.encrypt(msg)
             userdb.fp_pass = encrypt_pass
-            send_bot_reply(update, CONNECTING_MESSAGE)
+            send_bot_reply(update, DONE)
             fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
+            send_bot_reply(update, CONNECTING_MESSAGE)
             if fpapi.initialize_token():
                 userdb.fp_api_token = fpapi.access_token  # get api token
                 userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
@@ -200,7 +205,7 @@ def new_message(bot, update, args):
 
 
 def help(bot, update):
-    send_bot_reply(update, 'Help!')
+    send_bot_reply(update, HELP_MESSAGE)
 
 
 def about(bot, update):
@@ -346,12 +351,17 @@ def main():
 def add_contact(bot, update):
     phone_number = ''.join(x for x in update.message.contact.phone_number if x.isdigit())  # clean phone number
     usr = update.message.from_user
-    result = Contact.Contact.select().where((Contact.Contact.user_id == usr.id) & (Contact.Contact.phone_number == phone_number))
+    result = User.User.select().where(User.User.user_id == usr.id)
+    if not result:
+        send_bot_reply(update, UNKNOWN_ERROR_MESSAGE)
+        return
+    userdb = result.first()
+    result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.id) & (Contact.Contact.phone_number == phone_number))
     if result:
         contact_db = result.first()
         send_bot_reply(update, "You already have +%s on your contacts list saved as %s." % (contact_db.phone_number, contact_db.name))
     else:
-        contact_db = Contact.Contact(user_id=usr.id, name=update.message.contact.first_name, phone_number=phone_number, created_at=time.time(), updated_at=time.time())
+        contact_db = Contact.Contact(user=userdb, name=update.message.contact.first_name, phone_number=phone_number, created_at=time.time(), updated_at=time.time())
         if contact_db.save():
             send_bot_reply(update, "Okay, contact saved.")
 
@@ -383,10 +393,9 @@ def checker(*args, **kwargs):  # this is a thread
                             if fpapi.mark_as_read(txt['id']):
                                 sender = txt['from']
                                 name = ""
-                                result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.user_id) & (Contact.Contact.phone_number == sender))
+                                result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.id) & (Contact.Contact.phone_number == sender))
                                 if result:
                                     name = result.first().name
-
                                 text = prepare_text(txt, name)
                                 bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
                     else:
