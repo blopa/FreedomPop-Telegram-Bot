@@ -31,7 +31,7 @@ Config.read("config.ini")
 #  app messages
 DEFAULT_MESSAGE = "Hello there. What can I do for you? You could try /new_message or /plan_usage"
 ABOUT_MESSAGE = "I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?"
-HELP_MESSAGE = 'Need help? Here is a full list of all commands and features:\n\n/help - Get help.\n/about - Get information about this bot.\n/new_message - Send a new text message.\n/new - Usage: "/new <PHONE_NUMBER>".\n/plan_usage - Get your plan usage.\n/remove_account - Remove your Bot account.\n\nYou can also send me a contact from your phone so I can display your contact name whenever he/she sends you a message'
+HELP_MESSAGE = 'Need help? Here is a full list of all commands and features:\n\n/help - Get help.\n/about - Get information about this bot.\n/new_message - Send a new text message.\n/new - Usage: "/new <PHONE_NUMBER>".\n/plan_usage - Get your plan usage.\nget_sip - Get yout SIP login details\n/remove_account - Remove your Bot account.\n\nYou can also send me a contact from your phone so I can display your contact name whenever he/she sends you a message'
 EMAIL_MESSAGE = "Please send me your FreedomPop e-mail."
 PASSWORD_MESSAGE = "Great! Now send me the password."
 INVALID_EMAIL_MESSAGE = "Hmn.. that dosen't look like a valid email. Could you please try again?"
