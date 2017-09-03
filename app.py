@@ -4,6 +4,7 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import Bot
 import User
+import Contact
 import logging
 import time
 import re
@@ -55,10 +56,10 @@ UNKNOWN_ERROR_MESSAGE = "Oops! Something went wrong. Please try again later."
 # update. Error handlers also receive the raised TelegramError object in error.
 def start(bot, update):
     usr = update.message.from_user
-    msg = update.message.text
+    #  msg = update.message.text
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:
-        #userdb = User.User.get(User.User.user_id == usr.id)
+        #userdb = result.model.get()
         send_bot_reply(update, DEFAULT_MESSAGE)
     else:
         send_bot_reply(update, "Hello, " + ABOUT_MESSAGE)
@@ -72,7 +73,7 @@ def text(bot, update):  # handle all messages that are not commands
     msg = update.message.text
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         # REGISTRATION BLOCK ---------------------------------------------------------
         if userdb.fp_user is None:  # check if user has a registered email
             if not EMAIL.match(msg):
@@ -178,7 +179,7 @@ def new_message(bot, update, args):
         return
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         if args == []:  # if no argument
             userdb.conversation_state = SEND_NUMBER
             if userdb.save():
@@ -207,7 +208,7 @@ def cancel(bot, update):
     usr = update.message.from_user
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
             userdb.conversation_state = ACCESS
         userdb.send_text_phone = None
@@ -219,7 +220,7 @@ def remove_account(bot, update):
     usr = update.message.from_user
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         userdb.conversation_state = REMOVE_ACCOUNT
         if userdb.save():
             send_bot_reply(update, REMOVE_ACCOUNT_MESSAGE)
@@ -231,7 +232,7 @@ def confirm_remove(bot, update):
     usr = update.message.from_user
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         if userdb.conversation_state == REMOVE_ACCOUNT:
             if User.remove_user(userdb.user_id):
                 send_bot_reply(update, ACCOUNT_REMOVED_MESSAGE)
@@ -245,7 +246,7 @@ def plan_usage(bot, update):
     usr = update.message.from_user
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
             text = "Please check your plan details below:\n\n"
             fpapi = initialize_freedompop(userdb)
@@ -271,7 +272,7 @@ def other_commands(bot, update):
     msg = update.message.text
     result = User.User.select().where(User.User.user_id == usr.id).execute()
     if result:
-        userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.model.get()
         phone_number = get_phone_number("Reply: " + msg)
         if phone_number:
             userdb.conversation_state = SEND_TEXT
@@ -309,6 +310,7 @@ def main():
     dp.add_handler(CommandHandler("plan_usage", plan_usage))
     dp.add_handler(CommandHandler("new", new_message, pass_args=True))
     dp.add_handler(MessageHandler(Filters.command, other_commands))
+    dp.add_handler(MessageHandler(Filters.contact, add_contact))
 
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, text))
@@ -316,8 +318,9 @@ def main():
     # log all errors
     dp.add_error_handler(error)
 
-    # load users
+    # load dbs
     User.initialize_db()
+    Contact.initialize_db()
     global USERS
     USERS = list(User.User.select())
     # start sms thread
@@ -332,13 +335,26 @@ def main():
     updater.idle()
 
 
+def add_contact(bot, update):
+    phone_number = ''.join(x for x in update.message.contact.phone_number if x.isdigit())  # clean phone number
+    usr = update.message.from_user
+    result = Contact.Contact.select().where((Contact.Contact.user_id == usr.id) & (Contact.Contact.phone_number == phone_number)).execute()
+    if result:
+        contact_db = result.model.get()
+        send_bot_reply(update, "You already have +%s on your contacts list saved as %s." % (contact_db.phone_number, contact_db.name))
+    else:
+        contact_db = Contact.Contact(user_id=usr.id, name=update.message.contact.first_name, phone_number=phone_number, created_at=time.time(), updated_at=time.time())
+        if contact_db.save():
+            send_bot_reply(update, "Okay, contact saved.")
+
+
 def checker(*args, **kwargs):  # this is a thread
     time.sleep(5)
     bot = Bot(Config.get('TelegramAPI', 'api_token'))
     while True:
         users = list(USERS)
         before = time.time()
-        print before
+        # print before
         if users:
             try:
                 for userdb in users:
@@ -357,7 +373,13 @@ def checker(*args, **kwargs):  # this is a thread
                         for txt in data['messages']:
                             #  print "SMS arrived!!!"
                             if fpapi.mark_as_read(txt['id']):
-                                text = prepare_text(txt)
+                                sender = txt['from']
+                                name = ""
+                                result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.user_id) & (Contact.Contact.phone_number == sender)).execute()
+                                if result:
+                                    name = result.model.get().name
+
+                                text = prepare_text(txt, name)
                                 bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
                     else:
                         errors = int(userdb.fp_api_connection_errors)
@@ -376,16 +398,18 @@ def checker(*args, **kwargs):  # this is a thread
         time.sleep(sleep_time)
 
 
-def prepare_text(txt):
+def prepare_text(txt, name):
     reply = ""
     sender = txt['from']  # phone number
     for n in sender:
         letter = ALPHABET[int(n)]
         reply += random.choice([letter.upper(), letter])
-    #  reply = reply.encode('rot13')  # obfuscated phone number
     date = datetime.fromtimestamp(float(txt['date'])/1000).strftime('%m/%d/%Y %H:%M:%S')  # date
     content = cgi.escape(txt['body'])  # text content
-    return "<b>Reply:</b> /Reply%s\n<b>From: +%s @ %s</b>\n\n%s" % (reply, sender, date, content)
+    sender = "+" + sender
+    if name is not "":
+        sender = "%s (%s)" % (name, sender)
+    return "<b>Reply:</b> /Reply%s\n<b>From: %s @ %s</b>\n\n%s" % (reply, sender, date, content)
     #  return "<b>Reply:</b> /Reply%s\n<b>From:</b> <b><a href='tel:+%s'>+%s</a></b> <b>@ %s</b>\n\n%s" % (reply, sender, sender, date, content) # TODO
 
 
