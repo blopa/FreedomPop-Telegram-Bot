@@ -4,6 +4,7 @@
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 from telegram import Bot
 import User
+import Contact
 import logging
 import time
 import re
@@ -30,6 +31,7 @@ Config.read("config.ini")
 #  app messages
 DEFAULT_MESSAGE = "Hello there. What can I do for you? You could try /new_message or /plan_usage"
 ABOUT_MESSAGE = "I'm a bot that allow you to log into your FreedomPop account and start receiving and sending SMS from Telegram! AWESOME, right?"
+HELP_MESSAGE = 'Need help? Here is a full list of all commands and features:\n\n/help - Get help.\n/about - Get information about this bot.\n/new_message - Send a new text message.\n/new - Usage: "/new <PHONE_NUMBER>".\n/plan_usage - Get your plan usage.\n/remove_account - Remove your Bot account.\n\nYou can also send me a contact from your phone so I can display your contact name whenever he/she sends you a message'
 EMAIL_MESSAGE = "Please send me your FreedomPop e-mail."
 PASSWORD_MESSAGE = "Great! Now send me the password."
 INVALID_EMAIL_MESSAGE = "Hmn.. that dosen't look like a valid email. Could you please try again?"
@@ -37,7 +39,9 @@ INVALID_PHONE_MESSAGE = "Hmn.. that dosen't look like a valid phone number. Coul
 PHONE_TIP_MESSAGE = 'Try typing "/new" plus a valid phone number, like "/new <PHONE_NUMBER>".'
 UNABLE_TO_CONNECT = "I was unable to connect to your FreedomPop account :( please send us your email and password again."
 WRONG_CREDENTIALS_MESSAGE = "Something is wrong with your credentials, please register again using the /start command."
-CONNECTING_MESSAGE = "Connecting..."
+CONNECTING_MESSAGE = "Trying to connect to FreedomPop servers..."
+ENCRYPT_PASSWORD = "Encrypting your password..."
+DONE = "Done!"
 CONNECTED_MESSAGE = "Hooray, we are good to go! If you ever want to remove your account, simply send /remove_account."
 SEND_NUMBER_MESSAGE = "Alright, send me the phone number w/ country code or /cancel to cancel."
 SEND_MESSAGE_MESSAGE = "Alright, send the message or /cancel to cancel."
@@ -55,10 +59,11 @@ UNKNOWN_ERROR_MESSAGE = "Oops! Something went wrong. Please try again later."
 # update. Error handlers also receive the raised TelegramError object in error.
 def start(bot, update):
     usr = update.message.from_user
-    msg = update.message.text
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    #  msg = update.message.text
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:
-        #userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = result.first()
         send_bot_reply(update, DEFAULT_MESSAGE)
     else:
         send_bot_reply(update, "Hello, " + ABOUT_MESSAGE)
@@ -70,9 +75,10 @@ def start(bot, update):
 def text(bot, update):  # handle all messages that are not commands
     usr = update.message.from_user
     msg = update.message.text
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         # REGISTRATION BLOCK ---------------------------------------------------------
         if userdb.fp_user is None:  # check if user has a registered email
             if not EMAIL.match(msg):
@@ -83,10 +89,12 @@ def text(bot, update):  # handle all messages that are not commands
                 if userdb.save():
                     send_bot_reply(update, PASSWORD_MESSAGE)
         elif userdb.fp_pass is None:  # check if user has a registered password
+            send_bot_reply(update, ENCRYPT_PASSWORD)
             encrypt_pass = User.encrypt(msg)
             userdb.fp_pass = encrypt_pass
-            send_bot_reply(update, CONNECTING_MESSAGE)
+            send_bot_reply(update, DONE)
             fpapi = FreedomPop.FreedomPop(userdb.fp_user, User.decrypt(userdb.fp_pass))
+            send_bot_reply(update, CONNECTING_MESSAGE)
             if fpapi.initialize_token():
                 userdb.fp_api_token = fpapi.access_token  # get api token
                 userdb.fp_api_refresh_token = fpapi.refresh_token  # get api refresh token
@@ -176,9 +184,10 @@ def new_message(bot, update, args):
         send_bot_reply(update, INVALID_PHONE_MESSAGE)
         send_bot_reply(update, PHONE_TIP_MESSAGE)
         return
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if args == []:  # if no argument
             userdb.conversation_state = SEND_NUMBER
             if userdb.save():
@@ -196,7 +205,7 @@ def new_message(bot, update, args):
 
 
 def help(bot, update):
-    send_bot_reply(update, 'Help!')
+    send_bot_reply(update, HELP_MESSAGE)
 
 
 def about(bot, update):
@@ -205,9 +214,10 @@ def about(bot, update):
 
 def cancel(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
             userdb.conversation_state = ACCESS
         userdb.send_text_phone = None
@@ -217,9 +227,10 @@ def cancel(bot, update):
 
 def remove_account(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         userdb.conversation_state = REMOVE_ACCOUNT
         if userdb.save():
             send_bot_reply(update, REMOVE_ACCOUNT_MESSAGE)
@@ -229,9 +240,10 @@ def remove_account(bot, update):
 
 def confirm_remove(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if userdb.conversation_state == REMOVE_ACCOUNT:
             if User.remove_user(userdb.user_id):
                 send_bot_reply(update, ACCOUNT_REMOVED_MESSAGE)
@@ -243,9 +255,10 @@ def confirm_remove(bot, update):
 
 def plan_usage(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
             text = "Please check your plan details below:\n\n"
             fpapi = initialize_freedompop(userdb)
@@ -269,9 +282,10 @@ def plan_usage(bot, update):
 def other_commands(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:
-        userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         phone_number = get_phone_number("Reply: " + msg)
         if phone_number:
             userdb.conversation_state = SEND_TEXT
@@ -309,6 +323,7 @@ def main():
     dp.add_handler(CommandHandler("plan_usage", plan_usage))
     dp.add_handler(CommandHandler("new", new_message, pass_args=True))
     dp.add_handler(MessageHandler(Filters.command, other_commands))
+    dp.add_handler(MessageHandler(Filters.contact, add_contact))
 
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, text))
@@ -316,8 +331,9 @@ def main():
     # log all errors
     dp.add_error_handler(error)
 
-    # load users
+    # load dbs
     User.initialize_db()
+    Contact.initialize_db()
     global USERS
     USERS = list(User.User.select())
     # start sms thread
@@ -332,13 +348,31 @@ def main():
     updater.idle()
 
 
+def add_contact(bot, update):
+    phone_number = ''.join(x for x in update.message.contact.phone_number if x.isdigit())  # clean phone number
+    usr = update.message.from_user
+    result = User.User.select().where(User.User.user_id == usr.id)
+    if not result:
+        send_bot_reply(update, UNKNOWN_ERROR_MESSAGE)
+        return
+    userdb = result.first()
+    result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.id) & (Contact.Contact.phone_number == phone_number))
+    if result:
+        contact_db = result.first()
+        send_bot_reply(update, "You already have +%s on your contacts list saved as %s." % (contact_db.phone_number, contact_db.name))
+    else:
+        contact_db = Contact.Contact(user=userdb, name=update.message.contact.first_name, phone_number=phone_number, created_at=time.time(), updated_at=time.time())
+        if contact_db.save():
+            send_bot_reply(update, "Okay, contact saved.")
+
+
 def checker(*args, **kwargs):  # this is a thread
     time.sleep(5)
     bot = Bot(Config.get('TelegramAPI', 'api_token'))
     while True:
         users = list(USERS)
         before = time.time()
-        print before
+        # print before
         if users:
             try:
                 for userdb in users:
@@ -357,7 +391,12 @@ def checker(*args, **kwargs):  # this is a thread
                         for txt in data['messages']:
                             #  print "SMS arrived!!!"
                             if fpapi.mark_as_read(txt['id']):
-                                text = prepare_text(txt)
+                                sender = txt['from']
+                                name = ""
+                                result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.id) & (Contact.Contact.phone_number == sender))
+                                if result:
+                                    name = result.first().name
+                                text = prepare_text(txt, name)
                                 bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
                     else:
                         errors = int(userdb.fp_api_connection_errors)
@@ -376,16 +415,18 @@ def checker(*args, **kwargs):  # this is a thread
         time.sleep(sleep_time)
 
 
-def prepare_text(txt):
+def prepare_text(txt, name):
     reply = ""
     sender = txt['from']  # phone number
     for n in sender:
         letter = ALPHABET[int(n)]
         reply += random.choice([letter.upper(), letter])
-    #  reply = reply.encode('rot13')  # obfuscated phone number
     date = datetime.fromtimestamp(float(txt['date'])/1000).strftime('%m/%d/%Y %H:%M:%S')  # date
     content = cgi.escape(txt['body'])  # text content
-    return "<b>Reply:</b> /Reply%s\n<b>From: +%s @ %s</b>\n\n%s" % (reply, sender, date, content)
+    sender = "+" + sender
+    if name is not "":
+        sender = "%s (%s)" % (name, sender)
+    return "<b>Reply:</b> /Reply%s\n<b>From: %s @ %s</b>\n\n%s" % (reply, sender, date, content)
     #  return "<b>Reply:</b> /Reply%s\n<b>From:</b> <b><a href='tel:+%s'>+%s</a></b> <b>@ %s</b>\n\n%s" % (reply, sender, sender, date, content) # TODO
 
 

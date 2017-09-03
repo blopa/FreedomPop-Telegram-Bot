@@ -11,8 +11,10 @@ Config.read("config.ini")
 CRYPTO = Fernet(Config.get('Cryptography', 'crypto_key'))
 DATABASE = SqliteDatabase('userdb.db')  # create database to interact with
 
+
 # create a class for users
 class User(Model):
+    #  id = PrimaryKeyField()
     name = CharField()
     user_id = CharField(unique=True)
     conversation_state = CharField()
