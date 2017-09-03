@@ -57,9 +57,10 @@ UNKNOWN_ERROR_MESSAGE = "Oops! Something went wrong. Please try again later."
 def start(bot, update):
     usr = update.message.from_user
     #  msg = update.message.text
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:
-        #userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        #  userdb = result.first()
         send_bot_reply(update, DEFAULT_MESSAGE)
     else:
         send_bot_reply(update, "Hello, " + ABOUT_MESSAGE)
@@ -71,9 +72,10 @@ def start(bot, update):
 def text(bot, update):  # handle all messages that are not commands
     usr = update.message.from_user
     msg = update.message.text
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         # REGISTRATION BLOCK ---------------------------------------------------------
         if userdb.fp_user is None:  # check if user has a registered email
             if not EMAIL.match(msg):
@@ -177,9 +179,10 @@ def new_message(bot, update, args):
         send_bot_reply(update, INVALID_PHONE_MESSAGE)
         send_bot_reply(update, PHONE_TIP_MESSAGE)
         return
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if args == []:  # if no argument
             userdb.conversation_state = SEND_NUMBER
             if userdb.save():
@@ -206,9 +209,10 @@ def about(bot, update):
 
 def cancel(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
             userdb.conversation_state = ACCESS
         userdb.send_text_phone = None
@@ -218,9 +222,10 @@ def cancel(bot, update):
 
 def remove_account(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         userdb.conversation_state = REMOVE_ACCOUNT
         if userdb.save():
             send_bot_reply(update, REMOVE_ACCOUNT_MESSAGE)
@@ -230,9 +235,10 @@ def remove_account(bot, update):
 
 def confirm_remove(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if userdb.conversation_state == REMOVE_ACCOUNT:
             if User.remove_user(userdb.user_id):
                 send_bot_reply(update, ACCOUNT_REMOVED_MESSAGE)
@@ -244,9 +250,10 @@ def confirm_remove(bot, update):
 
 def plan_usage(bot, update):
     usr = update.message.from_user
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:  # check if user is on our database
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         if userdb.fp_user is not None and userdb.fp_pass is not None:
             text = "Please check your plan details below:\n\n"
             fpapi = initialize_freedompop(userdb)
@@ -270,9 +277,10 @@ def plan_usage(bot, update):
 def other_commands(bot, update):
     usr = update.message.from_user
     msg = update.message.text
-    result = User.User.select().where(User.User.user_id == usr.id).execute()
+    result = User.User.select().where(User.User.user_id == usr.id)
     if result:
-        userdb = result.model.get()
+        #  userdb = User.User.get(User.User.user_id == usr.id)
+        userdb = result.first()
         phone_number = get_phone_number("Reply: " + msg)
         if phone_number:
             userdb.conversation_state = SEND_TEXT
@@ -338,9 +346,9 @@ def main():
 def add_contact(bot, update):
     phone_number = ''.join(x for x in update.message.contact.phone_number if x.isdigit())  # clean phone number
     usr = update.message.from_user
-    result = Contact.Contact.select().where((Contact.Contact.user_id == usr.id) & (Contact.Contact.phone_number == phone_number)).execute()
+    result = Contact.Contact.select().where((Contact.Contact.user_id == usr.id) & (Contact.Contact.phone_number == phone_number))
     if result:
-        contact_db = result.model.get()
+        contact_db = result.first()
         send_bot_reply(update, "You already have +%s on your contacts list saved as %s." % (contact_db.phone_number, contact_db.name))
     else:
         contact_db = Contact.Contact(user_id=usr.id, name=update.message.contact.first_name, phone_number=phone_number, created_at=time.time(), updated_at=time.time())
@@ -375,9 +383,9 @@ def checker(*args, **kwargs):  # this is a thread
                             if fpapi.mark_as_read(txt['id']):
                                 sender = txt['from']
                                 name = ""
-                                result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.user_id) & (Contact.Contact.phone_number == sender)).execute()
+                                result = Contact.Contact.select().where((Contact.Contact.user_id == userdb.user_id) & (Contact.Contact.phone_number == sender))
                                 if result:
-                                    name = result.model.get().name
+                                    name = result.first().name
 
                                 text = prepare_text(txt, name)
                                 bot.sendMessage(chat_id=userdb.user_id, text=text, parse_mode='HTML')
