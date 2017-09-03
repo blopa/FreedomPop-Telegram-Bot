@@ -5,6 +5,13 @@ token=API_TOKEN_HERE
 api_client=API_CLIENT_HERE
 api_secret=API_SECRET_HERE
 api_app=API_APP_HERE
+# chose one: FPOP_PHONE, FPOP_BYOD, OTT_ANDROID, OTT_IOS
+api_device_type=API_DEVICE_TYPE_HERE
+api_device_id=0101010101
+api_device_sid=0101010101
+api_push_token=0101010101
+# chose one: PHONE_TYPE_CDMA, PHONE_TYPE_GSM, PHONE_TYPE_NONE, PHONE_TYPE_SIP
+api_radio_type=API_RADIO_TYPE_HERE
 
 [Cryptography]
 crypto_key=CRYPTOGRAPHY_KEY_HERE

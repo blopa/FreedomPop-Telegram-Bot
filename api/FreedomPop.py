@@ -16,6 +16,9 @@ class FreedomPop:
     api_client = Config.get('FreedomPopAPI', 'api_client')
     api_secret = Config.get('FreedomPopAPI', 'api_secret')
     api_app = Config.get('FreedomPopAPI', 'api_app')
+    api_device_id = Config.get('FreedomPopAPI', 'api_device_id')
+    api_device_sid = Config.get('FreedomPopAPI', 'api_device_sid')
+    api_radio_type = Config.get('FreedomPopAPI', 'api_radio_type')
     end_point = "https://api.freedompop.com"
 
     def __init__(self, username, password):
@@ -66,6 +69,17 @@ class FreedomPop:
 
     def get_account_info(self):
         return self.get_basic("phone/account/info")
+
+    def get_sip_config(self):
+        if not self.initialize_token():
+            return {}
+        params = dict(accessToken=self.access_token, deviceId=self.api_device_id, deviceSid=self.api_device_sid, radioType=self.api_radio_type)
+        url = self.end_point + '/phone/device/config'
+        req = requests.get(url, params=params)
+        if req.status_code == 200:
+            return json.loads(req.content)
+        else:
+            return False
 
     def get_text_messages(self, start_date, end_date, include_deleted, include_read, include_outgoing):  # TODO
         if not self.initialize_token():
